@@ -1,0 +1,11 @@
+{
+  "name": "agentgym",
+  "version": "0.3.0",
+  "description": "Train coding agents on your own codebase: benchmark, diagnose, improve, retest.",
+  "type": "module",
+  "bin": { "agentgym": "./src/cli.js" },
+  "scripts": { "test": "node --test", "start": "node src/cli.js", "check": "node --check src/cli.js" },
+  "keywords": ["ai", "coding-agent", "agents", "benchmark", "agents-md", "agent-skills"],
+  "license": "MIT",
+  "engines": { "node": ">=20" }
+}

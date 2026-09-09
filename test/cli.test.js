@@ -15,7 +15,7 @@ test('help exposes Kodematik v0.6 qualified benchmark options',()=>{
   assert.match(out,/--holdout PERCENT/);
   assert.match(out,/--candidates N/);
   assert.match(out,/--max-turns N/);
-  assert.match(out,/default 8/);
+  assert.match(out,/--max-turns 8/);
   assert.match(out,/Qualified Benchmarks/);
   assert.match(out,/historical parent fails verification/);
   assert.match(out,/--install/);

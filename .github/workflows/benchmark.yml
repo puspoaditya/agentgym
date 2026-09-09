@@ -7,6 +7,14 @@ on:
         description: Public GitHub repository in owner/name form
         required: true
         default: puspoaditya/kodematik
+      agent:
+        description: Coding-agent adapter
+        required: true
+        type: choice
+        options:
+          - codex
+          - openrouter
+        default: openrouter
       tasks:
         description: Number of historical replay tasks
         required: true
@@ -20,7 +28,7 @@ on:
         required: true
         default: '5'
       model:
-        description: Optional Codex model; leave blank for CLI default
+        description: Optional model; OpenRouter defaults to deepseek/deepseek-v4-flash
         required: false
         default: ''
 
@@ -33,11 +41,13 @@ jobs:
     timeout-minutes: 120
     env:
       TARGET_REPO: ${{ inputs.target_repo }}
+      AGENT: ${{ inputs.agent }}
       TASKS: ${{ inputs.tasks }}
       HOLDOUT: ${{ inputs.holdout }}
       CANDIDATES: ${{ inputs.candidates }}
       MODEL: ${{ inputs.model }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
     steps:
       - name: Checkout Kodematik
@@ -55,17 +65,26 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$TARGET_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo 'target_repo must be owner/name'; exit 2; }
+          [[ "$AGENT" == "codex" || "$AGENT" == "openrouter" ]] || { echo 'agent must be codex or openrouter'; exit 2; }
           [[ "$TASKS" =~ ^[1-9][0-9]*$ ]] || { echo 'tasks must be a positive integer'; exit 2; }
           [[ "$HOLDOUT" =~ ^[1-9][0-9]*$ ]] || { echo 'holdout must be a positive integer'; exit 2; }
           [[ "$CANDIDATES" =~ ^[1-9][0-9]*$ ]] || { echo 'candidates must be a positive integer'; exit 2; }
-          [ -n "$OPENAI_API_KEY" ] || { echo 'Missing repository secret OPENAI_API_KEY'; exit 2; }
+          if [ "$AGENT" = "codex" ]; then
+            [ -n "$OPENAI_API_KEY" ] || { echo 'Missing repository secret OPENAI_API_KEY'; exit 2; }
+          else
+            [ -n "$OPENROUTER_API_KEY" ] || { echo 'Missing repository secret OPENROUTER_API_KEY'; exit 2; }
+          fi
 
-      - name: Install Kodematik and Codex CLI
+      - name: Install Kodematik
         run: |
           npm install
           npm link
-          npm install -g @openai/codex@latest
           kodematik help
+
+      - name: Install Codex CLI
+        if: ${{ inputs.agent == 'codex' }}
+        run: |
+          npm install -g @openai/codex@latest
           codex --version
 
       - name: Clone benchmark target
@@ -82,6 +101,7 @@ jobs:
           MODEL_ARGS=()
           if [ -n "$MODEL" ]; then MODEL_ARGS=(--model "$MODEL"); fi
           kodematik evolve \
+            --agent "$AGENT" \
             --tasks "$TASKS" \
             --holdout "$HOLDOUT" \
             --candidates "$CANDIDATES" \
@@ -92,14 +112,17 @@ jobs:
         if: always()
         shell: bash
         run: |
+          DEFAULT_MODEL='Codex CLI default'
+          if [ "$AGENT" = "openrouter" ]; then DEFAULT_MODEL='deepseek/deepseek-v4-flash'; fi
           {
             echo "# Kodematik real-agent benchmark"
             echo
             echo "- Target: $TARGET_REPO"
+            echo "- Agent: $AGENT"
             echo "- Tasks: $TASKS"
             echo "- Holdout: $HOLDOUT%"
             echo "- Candidates: $CANDIDATES"
-            echo "- Model: ${MODEL:-Codex CLI default}"
+            echo "- Model: ${MODEL:-$DEFAULT_MODEL}"
             echo "- Commit: $GITHUB_SHA"
             echo
             echo '```text'

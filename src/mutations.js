@@ -4,7 +4,7 @@ import { packageManager } from './core.js';
 
 function existing(cwd){const p=join(cwd,'AGENTS.md');return existsSync(p)?readFileSync(p,'utf8').trim():'';}
 function verification(info,cwd){const s=info.scripts||{},pm=packageManager(cwd),cmd=n=>pm==='npm'?`npm run ${n}`:`${pm} ${n}`,out=[];if(s.test)out.push(pm==='npm'?'npm test':`${pm} test`);if(s.typecheck)out.push(cmd('typecheck'));else if(s['type-check'])out.push(cmd('type-check'));if(s.lint)out.push(cmd('lint'));return out;}
-function write(cwd,title,rules,info){const prior=existing(cwd),checks=verification(info,cwd),parts=[];if(prior)parts.push(prior,'','---','');parts.push(`# AgentGym candidate: ${title}`,'',...rules.map(x=>`- ${x}`));if(checks.length)parts.push('','## Required verification',...checks.map(x=>`- \`${x}\``));parts.push('');writeFileSync(join(cwd,'AGENTS.md'),parts.join('\n'));}
+function write(cwd,title,rules,info){const prior=existing(cwd),checks=verification(info,cwd),parts=[];if(prior)parts.push(prior,'','---','');parts.push(`# Kodematik candidate: ${title}`,'',...rules.map(x=>`- ${x}`));if(checks.length)parts.push('','## Required verification',...checks.map(x=>`- \`${x}\``));parts.push('');writeFileSync(join(cwd,'AGENTS.md'),parts.join('\n'));}
 
 export const mutationCatalog=[
  {id:'minimal',title:'Minimal change',apply:(cwd,info)=>write(cwd,'Minimal change',['Make the smallest correct change that addresses the observed failure.','Preserve existing tests; never weaken or delete them to get green checks.','Avoid generated, vendor, lock, and build-output files unless the task requires them.'],info)},

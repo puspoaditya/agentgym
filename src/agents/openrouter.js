@@ -39,15 +39,16 @@ const tools=[
   {type:'function',function:{name:'run_command',description:'Run a shell command inside the isolated repository worktree for inspection and verification.',parameters:{type:'object',properties:{command:{type:'string'}},required:['command'],additionalProperties:false}}}
 ];
 
-export function runOpenRouterTask(cwd,prompt,{model='deepseek/deepseek-v4-flash',timeout=300000}={}){
+export function runOpenRouterTask(cwd,prompt,{model='deepseek/deepseek-v4-flash',timeout=300000,maxTurns=8}={}){
   const key=process.env.OPENROUTER_API_KEY;
   if(!key)return{ok:false,status:1,events:[],usage:null,stderr:'OPENROUTER_API_KEY is required for --agent openrouter'};
+  const turnLimit=Math.max(1,Math.min(32,Number(maxTurns)||8));
   const messages=[
     {role:'system',content:'You are a coding agent operating inside an isolated Git worktree. Diagnose the task, inspect the repository with tools, make the smallest correct change, preserve tests, run relevant verification, and stop when the task is solved.'},
     {role:'user',content:prompt}
   ];
   let usage={input_tokens:0,output_tokens:0},lastText='';
-  for(let turn=0;turn<16;turn++){
+  for(let turn=0;turn<turnLimit;turn++){
     const r=postJson({model,messages,tools,tool_choice:'auto'},key,timeout);
     if(!r.ok)return{ok:false,status:r.status||1,events:[],usage,stderr:r.error||r.data?.error?.message||`OpenRouter HTTP ${r.status}`};
     const msg=r.data?.choices?.[0]?.message;
@@ -61,5 +62,5 @@ export function runOpenRouterTask(cwd,prompt,{model='deepseek/deepseek-v4-flash'
       messages.push({role:'tool',tool_call_id:call.id,name:call.function?.name,content:String(content)});
     }
   }
-  return{ok:false,status:1,events:[],usage,stderr:'OpenRouter agent exceeded 16 tool-call turns'};
+  return{ok:false,status:1,events:[],usage,stderr:`OpenRouter agent exceeded ${turnLimit} tool-call turns`};
 }

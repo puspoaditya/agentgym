@@ -1,0 +1,116 @@
+name: Real Agent Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: Public GitHub repository in owner/name form
+        required: true
+        default: puspoaditya/kodematik
+      tasks:
+        description: Number of historical replay tasks
+        required: true
+        default: '10'
+      holdout:
+        description: Held-out percentage
+        required: true
+        default: '30'
+      candidates:
+        description: Mutation candidates
+        required: true
+        default: '5'
+      model:
+        description: Optional Codex model; leave blank for CLI default
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TARGET_REPO: ${{ inputs.target_repo }}
+      TASKS: ${{ inputs.tasks }}
+      HOLDOUT: ${{ inputs.holdout }}
+      CANDIDATES: ${{ inputs.candidates }}
+      MODEL: ${{ inputs.model }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    steps:
+      - name: Checkout Kodematik
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate benchmark inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo 'target_repo must be owner/name'; exit 2; }
+          [[ "$TASKS" =~ ^[1-9][0-9]*$ ]] || { echo 'tasks must be a positive integer'; exit 2; }
+          [[ "$HOLDOUT" =~ ^[1-9][0-9]*$ ]] || { echo 'holdout must be a positive integer'; exit 2; }
+          [[ "$CANDIDATES" =~ ^[1-9][0-9]*$ ]] || { echo 'candidates must be a positive integer'; exit 2; }
+          [ -n "$OPENAI_API_KEY" ] || { echo 'Missing repository secret OPENAI_API_KEY'; exit 2; }
+
+      - name: Install Kodematik and Codex CLI
+        run: |
+          npm install
+          npm link
+          npm install -g @openai/codex@latest
+          kodematik help
+          codex --version
+
+      - name: Clone benchmark target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone "https://github.com/${TARGET_REPO}.git" benchmark-target
+
+      - name: Run real-agent evolution benchmark
+        working-directory: benchmark-target
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODEL_ARGS=()
+          if [ -n "$MODEL" ]; then MODEL_ARGS=(--model "$MODEL"); fi
+          kodematik evolve \
+            --tasks "$TASKS" \
+            --holdout "$HOLDOUT" \
+            --candidates "$CANDIDATES" \
+            --install \
+            "${MODEL_ARGS[@]}" | tee ../kodematik-benchmark.txt
+
+      - name: Write run metadata
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# Kodematik real-agent benchmark"
+            echo
+            echo "- Target: $TARGET_REPO"
+            echo "- Tasks: $TASKS"
+            echo "- Holdout: $HOLDOUT%"
+            echo "- Candidates: $CANDIDATES"
+            echo "- Model: ${MODEL:-Codex CLI default}"
+            echo "- Commit: $GITHUB_SHA"
+            echo
+            echo '```text'
+            if [ -f kodematik-benchmark.txt ]; then cat kodematik-benchmark.txt; else echo 'Benchmark did not produce a report.'; fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kodematik-benchmark-${{ github.run_id }}
+          path: kodematik-benchmark.txt
+          if-no-files-found: warn

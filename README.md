@@ -2,6 +2,7 @@
 <h1 align="center">AgentGym</h1>
 <p align="center"><strong>Train your coding agent on your own codebase.</strong></p>
 <p align="center">
+  <a href="https://github.com/puspoaditya/agentgym/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/puspoaditya/agentgym/ci.yml?branch=main&style=for-the-badge&label=tests"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-v0.4.0-7c3aed?style=for-the-badge">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge">
   <img alt="GitHub stars" src="https://img.shields.io/github/stars/puspoaditya/agentgym?style=for-the-badge&logo=github">
@@ -125,6 +126,10 @@ Available Node verification currently includes `test`, `typecheck` / `type-check
 
 Defaults: `--tasks 10`, `--holdout 30`, `--candidates 5`.
 
+## Continuous integration
+
+Every push and pull request to `main` now runs AgentGym's own syntax checks, unit tests, and CLI smoke test on **Node.js 20 and 22**. The CI badge at the top reflects the real workflow state; it is not a manually maintained status badge.
+
 ## Safety and evaluation integrity
 
 Agent runs use Codex's workspace-write sandbox inside disposable detached Git worktrees. Benchmark/evolution runs do not intentionally modify the source repository. Project verification scripts can execute repository code, so only evaluate repositories you trust.
@@ -155,13 +160,14 @@ npm test
 - [x] Multiple competing instruction mutations
 - [x] Deterministic training tournament
 - [x] Winner-only held-out validation
+- [x] GitHub Actions CI on Node.js 20 and 22
 - [ ] Stronger bug-fix task qualification
 - [ ] Historical dependency-install strategies
 - [ ] Generated repo-specific mutations
 - [ ] Repeated stochastic trials and confidence intervals
 - [ ] Additional coding-agent adapters
 - [ ] JSON / HTML reports
-- [ ] GitHub Action and npm release automation
+- [ ] npm package and release automation
 
 ## Why AgentGym?
 

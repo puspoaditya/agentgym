@@ -1,30 +1,22 @@
-<p align="center"><img src="assets/agentgym-banner.jpg" alt="AgentGym — Train your coding agent on your own codebase" width="100%"></p>
-<h1 align="center">AgentGym</h1>
+<h1 align="center">Kodematik</h1>
 <p align="center"><strong>Train your coding agent on your own codebase.</strong></p>
+<p align="center"><em>Benchmark → Mutate → Compete → Validate → Keep or Reject.</em></p>
 <p align="center">
   <a href="https://github.com/puspoaditya/agentgym/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/puspoaditya/agentgym/ci.yml?branch=main&style=for-the-badge&label=tests"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-v0.4.0-7c3aed?style=for-the-badge">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge">
   <img alt="GitHub stars" src="https://img.shields.io/github/stars/puspoaditya/agentgym?style=for-the-badge&logo=github">
-  <img alt="GitHub issues" src="https://img.shields.io/github/issues/puspoaditya/agentgym?style=for-the-badge&logo=github">
-</p>
-<p align="center">
-  <img alt="Node.js 20+" src="https://img.shields.io/badge/Node.js-20%2B-339933?style=flat-square&logo=nodedotjs&logoColor=white">
-  <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ESM-F7DF1E?style=flat-square&logo=javascript&logoColor=black">
-  <img alt="Git" src="https://img.shields.io/badge/Git-worktrees-F05032?style=flat-square&logo=git&logoColor=white">
-  <img alt="OpenAI Codex" src="https://img.shields.io/badge/OpenAI-Codex-412991?style=flat-square&logo=openai&logoColor=white">
-  <img alt="Evolution tournament" src="https://img.shields.io/badge/evolution-tournament-ec4899?style=flat-square">
-  <img alt="Held-out validation" src="https://img.shields.io/badge/held--out-validation-f97316?style=flat-square">
-  <img alt="No runtime dependencies" src="https://img.shields.io/badge/runtime_dependencies-0-16a34a?style=flat-square">
 </p>
 
-AgentGym is a local evaluation and evolution harness for coding agents. It turns repository history into executable replay tasks, benchmarks agent behavior in isolated Git worktrees, generates competing repository-instruction strategies, selects a winner on training tasks, and validates that winner on held-out tasks.
+**Kodematik** is a local evaluation and evolution harness for coding agents. It turns repository history into executable replay tasks, benchmarks agent behavior in isolated Git worktrees, generates competing repository-instruction strategies, selects a winner on training tasks, and validates that winner on held-out tasks.
 
-> **Benchmark → Mutate → Compete → Validate → Keep or Reject.**
+Kodematik does **not** fine-tune the foundation model. It searches for repository instructions that measurably improve how a coding agent works inside a particular codebase.
+
+> Repository history becomes the training ground. Deterministic checks become the judge. Held-out tasks decide whether an instruction strategy deserves to stay.
 
 ## v0.4 — Actual Evolution
 
-`agentgym evolve` now runs a real mutation tournament instead of comparing one static candidate.
+`kodematik evolve` runs a mutation tournament instead of trusting one hand-written candidate.
 
 ```text
 Historical repository tasks
@@ -51,11 +43,13 @@ Historical repository tasks
                                              KEEP / REJECT
 ```
 
-The five built-in strategies emphasize different agent behaviors: minimal patches, test-first diagnosis, repository-aware changes, strict verification, and a combined strategy. Existing historical `AGENTS.md` content is preserved and augmented inside the disposable evaluation worktree.
+The built-in strategies emphasize minimal patches, test-first diagnosis, repository-aware changes, strict verification, and a combined strategy. Existing historical `AGENTS.md` content is preserved and augmented only inside disposable evaluation worktrees.
 
-Tournament ranking is deterministic: **pass rate → verification score → lower token usage → candidate id**. Only the training winner reaches held-out evaluation, reducing evaluation cost and avoiding candidate-selection leakage into the holdout set.
+Tournament ranking is deterministic: **pass rate → verification score → lower token usage → candidate id**. Only the training winner reaches held-out evaluation, which reduces evaluation cost and avoids using holdout results to select a candidate.
 
 ## Quick start
+
+The repository is still temporarily named `agentgym` during the rebrand. After the GitHub repository itself is renamed to `kodematik`, use the new clone URL.
 
 ```bash
 git clone https://github.com/puspoaditya/agentgym.git
@@ -63,18 +57,24 @@ cd agentgym
 npm install
 npm link
 
-agentgym doctor
-agentgym benchmark --tasks 10 --no-agent
-agentgym evolve --tasks 10 --holdout 30 --candidates 5 --no-agent
+kodematik doctor
+kodematik benchmark --tasks 10 --no-agent
+kodematik evolve --tasks 10 --holdout 30 --candidates 5 --no-agent
 ```
 
-For real agent runs, install/authenticate Codex CLI and remove `--no-agent`:
+For real agent runs, install and authenticate Codex CLI, then remove `--no-agent`:
 
 ```bash
-agentgym evolve --tasks 20 --holdout 30 --candidates 5
+kodematik evolve --tasks 20 --holdout 30 --candidates 5
 ```
 
 Select a model with `--model <model>`.
+
+## What gets measured
+
+A replay task counts only when the historical parent state actually fails at least one available deterministic verification command. Kodematik then gives the coding agent a regression-fixing task and reruns the same checks.
+
+A repair cannot pass by merely weakening tests: edits to test/spec files are rejected by the current harness. Available Node verification currently includes `test`, `typecheck` / `type-check`, and `lint` package scripts.
 
 ## Example tournament
 
@@ -91,8 +91,6 @@ repo-map                    76%        82     18840
 verify-strict               69%        80     19600
 combined                    81%        87     20110  ← winner
 
-Training winner: Combined strategy
-
 Validating only the winner on held-out tasks...
 Held-out baseline: 61%
 Held-out winner:   78%
@@ -100,53 +98,38 @@ Held-out winner:   78%
 KEEP ✓ Combined strategy won training and did not regress held-out evaluation.
 ```
 
-Numbers above are illustrative; AgentGym reports only results produced by the repository being evaluated.
-
-## How replay evaluation works
-
-1. Sample recent non-merge commits with a single parent.
-2. Create a detached disposable worktree at the historical parent commit.
-3. Run available deterministic checks before the agent.
-4. Count the task only when the historical state actually contains a failing check.
-5. Run the coding agent with baseline or mutation instructions.
-6. Re-run the same checks.
-7. Reject repairs that modify test/spec files merely to hide failures.
-8. Remove the worktree.
-
-Available Node verification currently includes `test`, `typecheck` / `type-check`, and `lint` package scripts.
+**These numbers are illustrative, not benchmark claims.** Kodematik should publish performance numbers only when they come from reproducible real-agent runs.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `agentgym doctor` | Inspect repository readiness metadata |
-| `agentgym benchmark --tasks N` | Replay historical tasks and measure the agent |
-| `agentgym evolve --tasks N --holdout P --candidates N` | Run mutation tournament + held-out validation |
-| `agentgym init` | Install the AgentGym skill bundle |
+| `kodematik doctor` | Inspect repository readiness metadata |
+| `kodematik benchmark --tasks N` | Replay historical tasks and measure the agent |
+| `kodematik evolve --tasks N --holdout P --candidates N` | Run mutation tournament + held-out validation |
+| `kodematik init` | Install the Kodematik skill bundle |
 
 Defaults: `--tasks 10`, `--holdout 30`, `--candidates 5`.
 
-## Continuous integration
-
-Every push and pull request to `main` now runs AgentGym's own syntax checks, unit tests, and CLI smoke test on **Node.js 20 and 22**. The CI badge at the top reflects the real workflow state; it is not a manually maintained status badge.
-
 ## Safety and evaluation integrity
 
-Agent runs use Codex's workspace-write sandbox inside disposable detached Git worktrees. Benchmark/evolution runs do not intentionally modify the source repository. Project verification scripts can execute repository code, so only evaluate repositories you trust.
+Agent runs use Codex's workspace-write sandbox inside disposable detached Git worktrees. Benchmark/evolution runs do not intentionally modify the source repository. Project verification scripts execute repository code, so evaluate only repositories you trust.
 
-AgentGym separates **readiness metadata** from **agent performance**. Static signals such as an `AGENTS.md` file or CI workflow are useful diagnostics, but they are never presented as proof that an agent performs better.
+Kodematik separates **readiness metadata** from **agent performance**. Static signals such as `AGENTS.md` or a CI workflow are useful diagnostics, but they are not evidence that an agent performs better.
 
 ## Agent Skill
 
-The repository includes `skills/agentgym/SKILL.md` plus an evaluation contract under `skills/agentgym/references/`. Install the bundle into another repository with:
+The repository includes `skills/kodematik/SKILL.md` and `skills/kodematik/references/evaluation.md`. Install the bundle into another repository with:
 
 ```bash
-agentgym init
+kodematik init
 ```
 
-## v0.4 test coverage
+The skill follows the same train/held-out discipline as the CLI and documents the v0.4 tournament behavior, including `--candidates N` and winner-only held-out validation.
 
-The suite covers worktree isolation, historical replay, non-vacuous regression detection, ground-truth patch replay, deterministic train/holdout splitting, suite/token scoring, held-out rejection, mutation catalog integrity, candidate isolation, and tournament tie-breaking.
+## Continuous integration
+
+Every push and pull request to `main` runs syntax checks, unit tests, and a CLI smoke test on **Node.js 20 and 22**. The CI badge reflects the live GitHub Actions state.
 
 ```bash
 npm run check
@@ -161,6 +144,9 @@ npm test
 - [x] Deterministic training tournament
 - [x] Winner-only held-out validation
 - [x] GitHub Actions CI on Node.js 20 and 22
+- [x] Kodematik package and CLI rebrand
+- [x] Kodematik v0.4 skill bundle
+- [ ] Rename GitHub repository to `kodematik`
 - [ ] Stronger bug-fix task qualification
 - [ ] Historical dependency-install strategies
 - [ ] Generated repo-specific mutations
@@ -168,19 +154,22 @@ npm test
 - [ ] Additional coding-agent adapters
 - [ ] JSON / HTML reports
 - [ ] npm package and release automation
+- [ ] Real-world reproducible benchmark results
 
-## Why AgentGym?
+## Why Kodematik?
 
 Most evaluation tools answer **“How good is my coding agent?”**
 
-AgentGym is built to answer a different question:
+Kodematik is built to answer a different question:
 
 > **“Which repository instructions measurably make my coding agent better — including on tasks they were not selected on?”**
 
+That makes `evolve` the core loop: **benchmark → mutate → compete → validate → keep or reject**.
+
 ## Contributing
 
-Reproducible failure cases, new mutation strategies, agent adapters, and evaluation ideas are welcome. If AgentGym is useful to you, starring the repository helps other agent builders discover it.
+Reproducible failure cases, new mutation strategies, coding-agent adapters, and evaluation ideas are welcome.
 
 ## License
 
-MIT © AgentGym contributors
+MIT © Kodematik contributors

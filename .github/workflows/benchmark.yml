@@ -16,9 +16,13 @@ on:
           - openrouter
         default: openrouter
       tasks:
-        description: Number of historical replay tasks
+        description: Number of regression-qualified replay tasks
         required: true
-        default: '10'
+        default: '5'
+      scan_limit:
+        description: Maximum candidate commits to scan for qualified regressions
+        required: true
+        default: '50'
       holdout:
         description: Held-out percentage
         required: true
@@ -26,7 +30,7 @@ on:
       candidates:
         description: Mutation candidates
         required: true
-        default: '5'
+        default: '3'
       max_turns:
         description: Maximum tool-call turns per agent task
         required: true
@@ -47,6 +51,7 @@ jobs:
       TARGET_REPO: ${{ inputs.target_repo }}
       AGENT: ${{ inputs.agent }}
       TASKS: ${{ inputs.tasks }}
+      SCAN_LIMIT: ${{ inputs.scan_limit }}
       HOLDOUT: ${{ inputs.holdout }}
       CANDIDATES: ${{ inputs.candidates }}
       MAX_TURNS: ${{ inputs.max_turns }}
@@ -72,6 +77,7 @@ jobs:
           [[ "$TARGET_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo 'target_repo must be owner/name'; exit 2; }
           [[ "$AGENT" == "codex" || "$AGENT" == "openrouter" ]] || { echo 'agent must be codex or openrouter'; exit 2; }
           [[ "$TASKS" =~ ^[1-9][0-9]*$ ]] || { echo 'tasks must be a positive integer'; exit 2; }
+          [[ "$SCAN_LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo 'scan_limit must be a positive integer'; exit 2; }
           [[ "$HOLDOUT" =~ ^[1-9][0-9]*$ ]] || { echo 'holdout must be a positive integer'; exit 2; }
           [[ "$CANDIDATES" =~ ^[1-9][0-9]*$ ]] || { echo 'candidates must be a positive integer'; exit 2; }
           [[ "$MAX_TURNS" =~ ^[1-9][0-9]*$ ]] || { echo 'max_turns must be a positive integer'; exit 2; }
@@ -109,6 +115,7 @@ jobs:
           kodematik evolve \
             --agent "$AGENT" \
             --tasks "$TASKS" \
+            --scan-limit "$SCAN_LIMIT" \
             --holdout "$HOLDOUT" \
             --candidates "$CANDIDATES" \
             --max-turns "$MAX_TURNS" \
@@ -126,7 +133,8 @@ jobs:
             echo
             echo "- Target: $TARGET_REPO"
             echo "- Agent: $AGENT"
-            echo "- Tasks: $TASKS"
+            echo "- Tasks: $TASKS qualified regressions requested"
+            echo "- Scan limit: $SCAN_LIMIT candidate commits"
             echo "- Holdout: $HOLDOUT%"
             echo "- Candidates: $CANDIDATES"
             echo "- Max turns: $MAX_TURNS"

@@ -1,14 +1,53 @@
 <p align="center">
-  <img src="assets/agentgym-banner.svg" alt="AgentGym — Train your coding agent on your own codebase" width="100%">
+  <img src="assets/agentgym-banner.jpg" alt="AgentGym — Train your coding agent on your own codebase" width="100%">
 </p>
 
-# AgentGym
+<h1 align="center">AgentGym</h1>
 
-**Train your coding agent on your own codebase.**
+<p align="center"><strong>Train your coding agent on your own codebase.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/puspoaditya/agentgym"><img alt="Version" src="https://img.shields.io/badge/version-v0.3.0-7c3aed?style=for-the-badge"></a>
+  <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge"></a>
+  <a href="https://github.com/puspoaditya/agentgym/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/puspoaditya/agentgym?style=for-the-badge&logo=github"></a>
+  <a href="https://github.com/puspoaditya/agentgym/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/puspoaditya/agentgym?style=for-the-badge&logo=github"></a>
+</p>
+
+<p align="center">
+  <img alt="Node.js 20+" src="https://img.shields.io/badge/Node.js-20%2B-339933?style=flat-square&logo=nodedotjs&logoColor=white">
+  <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ESM-F7DF1E?style=flat-square&logo=javascript&logoColor=black">
+  <img alt="Git" src="https://img.shields.io/badge/Git-worktrees-F05032?style=flat-square&logo=git&logoColor=white">
+  <img alt="OpenAI Codex" src="https://img.shields.io/badge/OpenAI-Codex-412991?style=flat-square&logo=openai&logoColor=white">
+  <img alt="Agent Skills" src="https://img.shields.io/badge/Agent-Skills-0ea5e9?style=flat-square">
+  <img alt="Local first" src="https://img.shields.io/badge/local--first-evaluation-111827?style=flat-square">
+  <img alt="Held-out validation" src="https://img.shields.io/badge/held--out-validation-f97316?style=flat-square">
+  <img alt="No runtime dependencies" src="https://img.shields.io/badge/runtime_dependencies-0-16a34a?style=flat-square">
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#multi-commit-replay-tasks">How It Works</a> ·
+  <a href="#held-out-evolution">Evolution</a> ·
+  <a href="#commands">CLI</a> ·
+  <a href="#roadmap">Roadmap</a>
+</p>
 
 AgentGym is an experimental local evaluation harness for coding agents. It turns repository history into replay tasks, runs an agent inside isolated Git worktrees, verifies results with deterministic project checks, and compares baseline behavior against candidate repository instructions.
 
-> Benchmark → Diagnose → Improve → Validate → Retest.
+> **Benchmark → Diagnose → Improve → Validate → Retest.**
+
+## Why AgentGym?
+
+Coding-agent instructions are usually changed by intuition. AgentGym treats them like an optimization problem: replay real repository history, measure executable outcomes, mutate instructions, and keep a candidate only when the evidence says it improved performance.
+
+| Capability | AgentGym |
+| --- | --- |
+| 🧪 Real tasks | Replays historical commits instead of synthetic prompts |
+| 🧱 Isolation | Every experiment runs in a disposable detached Git worktree |
+| ✅ Ground truth | Uses tests, typecheck, and lint instead of vibes-only scoring |
+| 🧬 Evolution | Compares baseline behavior against candidate repository instructions |
+| 🔒 Validation | Separates training tasks from held-out tasks |
+| 🛡️ Safety | Rejects repairs that simply modify tests to hide failures |
 
 ## Status
 
@@ -24,8 +63,11 @@ A readiness score is never presented as an agent benchmark score.
 ## Quick start
 
 ```bash
+git clone https://github.com/puspoaditya/agentgym.git
+cd agentgym
 npm install
 npm link
+
 agentgym doctor
 agentgym benchmark --tasks 10 --no-agent
 agentgym evolve --tasks 10 --holdout 30 --no-agent
@@ -113,12 +155,13 @@ The numbers above illustrate the output format; AgentGym only prints real result
 
 ## Commands
 
-```text
-agentgym doctor
-agentgym benchmark [--tasks N] [--candidate] [--model MODEL] [--no-agent]
-agentgym evolve [--tasks N] [--holdout PERCENT] [--model MODEL] [--no-agent]
-agentgym init
-```
+| Command | Purpose |
+| --- | --- |
+| `agentgym doctor` | Inspect prerequisites and repository readiness signals |
+| `agentgym benchmark --tasks N` | Replay multiple historical tasks and measure the agent |
+| `agentgym benchmark --candidate` | Benchmark with candidate repository instructions |
+| `agentgym evolve --tasks N --holdout PERCENT` | Train on one partition and validate on held-out tasks |
+| `agentgym init` | Install the AgentGym skill bundle into the current repository |
 
 `--tasks N` defaults to `10`. `--holdout PERCENT` defaults to `30` and is clamped to a conservative range by the current MVP.
 
@@ -175,18 +218,21 @@ npm test
 
 ## Roadmap
 
-The next milestones are stronger task qualification, filtering likely bug-fix commits, dependency-install strategies for historical worktrees, multiple candidate mutations (`AGENTS.md`, skills and hooks), cost-aware selection, repeated trials for stochastic agents, additional agent adapters, JSON/HTML reports, and a GitHub Action.
+- [ ] Stronger replay-task qualification and likely bug-fix filtering
+- [ ] Historical dependency-install strategies
+- [ ] Multiple competing mutations for `AGENTS.md`, skills, and hooks
+- [ ] Cost-aware candidate selection and repeated stochastic trials
+- [ ] Additional coding-agent adapters
+- [ ] JSON and HTML benchmark reports
+- [ ] GitHub Action for continuous agent evaluation
+- [ ] npm package and release automation
 
-## Why AgentGym
+## Contributing
 
-Most tools answer:
+AgentGym is early and intentionally small. Issues, experiments, reproducible failure cases, agent adapters, and evaluation ideas are welcome.
 
-**“How good is my coding agent?”**
-
-AgentGym aims to answer:
-
-**“Which repository instructions measurably make my coding agent better — including on tasks it did not train on?”**
+If AgentGym helps your coding-agent workflow, consider starring the repository — it makes the project easier for other agent builders to discover.
 
 ## License
 
-MIT
+MIT © AgentGym contributors

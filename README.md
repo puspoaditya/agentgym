@@ -1,64 +1,58 @@
-<p align="center">
-  <img src="assets/agentgym-banner.jpg" alt="AgentGym — Train your coding agent on your own codebase" width="100%">
-</p>
-
+<p align="center"><img src="assets/agentgym-banner.jpg" alt="AgentGym — Train your coding agent on your own codebase" width="100%"></p>
 <h1 align="center">AgentGym</h1>
-
 <p align="center"><strong>Train your coding agent on your own codebase.</strong></p>
-
 <p align="center">
-  <a href="https://github.com/puspoaditya/agentgym"><img alt="Version" src="https://img.shields.io/badge/version-v0.3.0-7c3aed?style=for-the-badge"></a>
-  <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge"></a>
-  <a href="https://github.com/puspoaditya/agentgym/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/puspoaditya/agentgym?style=for-the-badge&logo=github"></a>
-  <a href="https://github.com/puspoaditya/agentgym/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/puspoaditya/agentgym?style=for-the-badge&logo=github"></a>
+  <img alt="Version" src="https://img.shields.io/badge/version-v0.4.0-7c3aed?style=for-the-badge">
+  <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge">
+  <img alt="GitHub stars" src="https://img.shields.io/github/stars/puspoaditya/agentgym?style=for-the-badge&logo=github">
+  <img alt="GitHub issues" src="https://img.shields.io/github/issues/puspoaditya/agentgym?style=for-the-badge&logo=github">
 </p>
-
 <p align="center">
   <img alt="Node.js 20+" src="https://img.shields.io/badge/Node.js-20%2B-339933?style=flat-square&logo=nodedotjs&logoColor=white">
   <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ESM-F7DF1E?style=flat-square&logo=javascript&logoColor=black">
   <img alt="Git" src="https://img.shields.io/badge/Git-worktrees-F05032?style=flat-square&logo=git&logoColor=white">
   <img alt="OpenAI Codex" src="https://img.shields.io/badge/OpenAI-Codex-412991?style=flat-square&logo=openai&logoColor=white">
-  <img alt="Agent Skills" src="https://img.shields.io/badge/Agent-Skills-0ea5e9?style=flat-square">
-  <img alt="Local first" src="https://img.shields.io/badge/local--first-evaluation-111827?style=flat-square">
+  <img alt="Evolution tournament" src="https://img.shields.io/badge/evolution-tournament-ec4899?style=flat-square">
   <img alt="Held-out validation" src="https://img.shields.io/badge/held--out-validation-f97316?style=flat-square">
   <img alt="No runtime dependencies" src="https://img.shields.io/badge/runtime_dependencies-0-16a34a?style=flat-square">
 </p>
 
-<p align="center">
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#multi-commit-replay-tasks">How It Works</a> ·
-  <a href="#held-out-evolution">Evolution</a> ·
-  <a href="#commands">CLI</a> ·
-  <a href="#roadmap">Roadmap</a>
-</p>
+AgentGym is a local evaluation and evolution harness for coding agents. It turns repository history into executable replay tasks, benchmarks agent behavior in isolated Git worktrees, generates competing repository-instruction strategies, selects a winner on training tasks, and validates that winner on held-out tasks.
 
-AgentGym is an experimental local evaluation harness for coding agents. It turns repository history into replay tasks, runs an agent inside isolated Git worktrees, verifies results with deterministic project checks, and compares baseline behavior against candidate repository instructions.
+> **Benchmark → Mutate → Compete → Validate → Keep or Reject.**
 
-> **Benchmark → Diagnose → Improve → Validate → Retest.**
+## v0.4 — Actual Evolution
 
-## Why AgentGym?
+`agentgym evolve` now runs a real mutation tournament instead of comparing one static candidate.
 
-Coding-agent instructions are usually changed by intuition. AgentGym treats them like an optimization problem: replay real repository history, measure executable outcomes, mutate instructions, and keep a candidate only when the evidence says it improved performance.
+```text
+Historical repository tasks
+          │
+     Train / Held-out
+          │
+          ├──────── Training ──────────────────────┐
+          │                                        │
+       Baseline                            Mutation candidates
+                                             ├─ minimal
+                                             ├─ test-first
+                                             ├─ repo-map
+                                             ├─ verify-strict
+                                             └─ combined
+                                                   │
+                                             Tournament
+                                                   │
+                                                Winner
+                                                   │
+          └──────── Held-out ──────────────────────┤
+                                                   │
+                                          Baseline vs Winner
+                                                   │
+                                             KEEP / REJECT
+```
 
-| Capability | AgentGym |
-| --- | --- |
-| 🧪 Real tasks | Replays historical commits instead of synthetic prompts |
-| 🧱 Isolation | Every experiment runs in a disposable detached Git worktree |
-| ✅ Ground truth | Uses tests, typecheck, and lint instead of vibes-only scoring |
-| 🧬 Evolution | Compares baseline behavior against candidate repository instructions |
-| 🔒 Validation | Separates training tasks from held-out tasks |
-| 🛡️ Safety | Rejects repairs that simply modify tests to hide failures |
+The five built-in strategies emphasize different agent behaviors: minimal patches, test-first diagnosis, repository-aware changes, strict verification, and a combined strategy. Existing historical `AGENTS.md` content is preserved and augmented inside the disposable evaluation worktree.
 
-## Status
-
-`v0.3.0` is an early MVP focused on JavaScript/TypeScript repositories with package scripts and a Codex CLI adapter. The key change in v0.3 is **multi-task evaluation with held-out validation**: AgentGym no longer decides whether an instruction is useful from a single commit.
-
-AgentGym intentionally separates two ideas:
-
-- **readiness metadata** — static signals such as AGENTS.md, test scripts, lint and CI;
-- **agent performance** — executable outcomes on replay tasks.
-
-A readiness score is never presented as an agent benchmark score.
+Tournament ranking is deterministic: **pass rate → verification score → lower token usage → candidate id**. Only the training winner reaches held-out evaluation, reducing evaluation cost and avoiding candidate-selection leakage into the holdout set.
 
 ## Quick start
 
@@ -70,168 +64,116 @@ npm link
 
 agentgym doctor
 agentgym benchmark --tasks 10 --no-agent
-agentgym evolve --tasks 10 --holdout 30 --no-agent
+agentgym evolve --tasks 10 --holdout 30 --candidates 5 --no-agent
 ```
 
-For a real coding-agent run, install and authenticate Codex CLI, then remove `--no-agent`:
+For real agent runs, install/authenticate Codex CLI and remove `--no-agent`:
 
 ```bash
-agentgym benchmark --tasks 10
-agentgym evolve --tasks 10 --holdout 30
+agentgym evolve --tasks 20 --holdout 30 --candidates 5
 ```
 
-Select a Codex model with:
+Select a model with `--model <model>`.
 
-```bash
-agentgym evolve --tasks 10 --model <model>
+## Example tournament
+
+```text
+Task split: 14 training · 6 held-out
+Evolution tournament: 5 mutation candidates
+
+Training tournament
+candidate              pass rate  verify  tokens
+baseline                    58%        64     18420
+minimal                     67%        71     17790
+test-first                  72%        78     19120
+repo-map                    76%        82     18840
+verify-strict               69%        80     19600
+combined                    81%        87     20110  ← winner
+
+Training winner: Combined strategy
+
+Validating only the winner on held-out tasks...
+Held-out baseline: 61%
+Held-out winner:   78%
+
+KEEP ✓ Combined strategy won training and did not regress held-out evaluation.
 ```
 
-## Multi-commit replay tasks
+Numbers above are illustrative; AgentGym reports only results produced by the repository being evaluated.
 
-AgentGym samples non-merge commits from Git history. Each selected commit becomes a replay task:
+## How replay evaluation works
 
-1. Identify commit `C` and its single parent `P`.
-2. Create a detached disposable Git worktree at `P`.
-3. Run the repository verification commands before the agent.
-4. Count the task only if the historical pre-fix state actually fails at least one check.
-5. Ask the coding agent to diagnose and fix the regression.
-6. Run the same verification commands after the agent.
-7. Reject solutions that modify test files merely to make failures disappear.
+1. Sample recent non-merge commits with a single parent.
+2. Create a detached disposable worktree at the historical parent commit.
+3. Run available deterministic checks before the agent.
+4. Count the task only when the historical state actually contains a failing check.
+5. Run the coding agent with baseline or mutation instructions.
+6. Re-run the same checks.
+7. Reject repairs that modify test/spec files merely to hide failures.
 8. Remove the worktree.
 
-Tasks whose parent state is already green are reported as `SKIP` rather than becoming vacuous successes.
-
-## Held-out evolution
-
-`agentgym evolve` splits sampled tasks into **training** and **held-out** partitions.
-
-```text
-Git history
-    │
-    ├── training tasks
-    │      ├── baseline
-    │      └── candidate + generated AGENTS.md
-    │
-    └── held-out tasks
-           ├── baseline
-           └── candidate + generated AGENTS.md
-```
-
-The current candidate adds a concise `AGENTS.md` containing minimal-edit and verification guidance. AgentGym reports `KEEP` only when:
-
-1. the candidate improves training performance;
-2. it is not worse on either training metric;
-3. it does not regress held-out evaluation when usable held-out tasks exist.
-
-This is deliberately stricter than choosing the prompt that happens to win on the same task used to create it.
-
-## Example output
-
-```text
-Task split: 7 training · 3 held-out
-
-Training baseline
-PASS a1b2c3d4  100/100  fix parser edge case
-FAIL d4e5f6a7    0/100  fix stale cache
-...
-Usable: 6/7 · Pass rate: 50% · Verification: 58/100
-
-Training candidate
-...
-Usable: 6/7 · Pass rate: 67% · Verification: 75/100
-
-Held-out baseline
-Usable: 3/3 · Pass rate: 67% · Verification: 67/100
-
-Held-out candidate
-Usable: 3/3 · Pass rate: 67% · Verification: 67/100
-
-Training delta: +17 score, +17 pass-rate points
-Held-out delta: +0 score, +0 pass-rate points
-KEEP ✓ Candidate improved training and did not regress held-out evaluation.
-```
-
-The numbers above illustrate the output format; AgentGym only prints real results from the repository being evaluated.
+Available Node verification currently includes `test`, `typecheck` / `type-check`, and `lint` package scripts.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `agentgym doctor` | Inspect prerequisites and repository readiness signals |
-| `agentgym benchmark --tasks N` | Replay multiple historical tasks and measure the agent |
-| `agentgym benchmark --candidate` | Benchmark with candidate repository instructions |
-| `agentgym evolve --tasks N --holdout PERCENT` | Train on one partition and validate on held-out tasks |
-| `agentgym init` | Install the AgentGym skill bundle into the current repository |
+| `agentgym doctor` | Inspect repository readiness metadata |
+| `agentgym benchmark --tasks N` | Replay historical tasks and measure the agent |
+| `agentgym evolve --tasks N --holdout P --candidates N` | Run mutation tournament + held-out validation |
+| `agentgym init` | Install the AgentGym skill bundle |
 
-`--tasks N` defaults to `10`. `--holdout PERCENT` defaults to `30` and is clamped to a conservative range by the current MVP.
+Defaults: `--tasks 10`, `--holdout 30`, `--candidates 5`.
 
-## Deterministic verification
+## Safety and evaluation integrity
 
-For Node repositories AgentGym detects these package scripts when present:
+Agent runs use Codex's workspace-write sandbox inside disposable detached Git worktrees. Benchmark/evolution runs do not intentionally modify the source repository. Project verification scripts can execute repository code, so only evaluate repositories you trust.
 
-- `test`
-- `typecheck` / `type-check`
-- `lint`
-
-The verification score is the percentage of available checks that pass. A task can only count as a successful repair if a regression was detected before the agent and every detected verification command passes afterward.
-
-## Safety model
-
-Agent runs are launched with Codex's workspace-write sandbox and no approval prompts, inside disposable detached Git worktrees. The original repository is not modified by benchmark/evolution runs.
-
-Repository verification commands can themselves execute arbitrary project code. Only benchmark repositories you trust.
+AgentGym separates **readiness metadata** from **agent performance**. Static signals such as an `AGENTS.md` file or CI workflow are useful diagnostics, but they are never presented as proof that an agent performs better.
 
 ## Agent Skill
 
-The repository includes:
-
-```text
-skills/agentgym/
-├── SKILL.md
-└── references/
-    └── evaluation.md
-```
-
-Install the skill bundle into another repository with:
+The repository includes `skills/agentgym/SKILL.md` plus an evaluation contract under `skills/agentgym/references/`. Install the bundle into another repository with:
 
 ```bash
 agentgym init
 ```
 
-## What v0.3 proves
+## v0.4 test coverage
 
-The test suite covers:
-
-- source/worktree isolation;
-- historical replay task construction;
-- non-vacuous regression detection;
-- a ground-truth historical patch successfully solving a replay task;
-- deterministic training/held-out partitioning;
-- suite scoring and token aggregation;
-- rejection when training improves but held-out performance regresses.
-
-Run it with:
+The suite covers worktree isolation, historical replay, non-vacuous regression detection, ground-truth patch replay, deterministic train/holdout splitting, suite/token scoring, held-out rejection, mutation catalog integrity, candidate isolation, and tournament tie-breaking.
 
 ```bash
+npm run check
 npm test
 ```
 
 ## Roadmap
 
-- [ ] Stronger replay-task qualification and likely bug-fix filtering
+- [x] Multi-task historical replay
+- [x] Train / held-out evaluation
+- [x] Multiple competing instruction mutations
+- [x] Deterministic training tournament
+- [x] Winner-only held-out validation
+- [ ] Stronger bug-fix task qualification
 - [ ] Historical dependency-install strategies
-- [ ] Multiple competing mutations for `AGENTS.md`, skills, and hooks
-- [ ] Cost-aware candidate selection and repeated stochastic trials
+- [ ] Generated repo-specific mutations
+- [ ] Repeated stochastic trials and confidence intervals
 - [ ] Additional coding-agent adapters
-- [ ] JSON and HTML benchmark reports
-- [ ] GitHub Action for continuous agent evaluation
-- [ ] npm package and release automation
+- [ ] JSON / HTML reports
+- [ ] GitHub Action and npm release automation
+
+## Why AgentGym?
+
+Most evaluation tools answer **“How good is my coding agent?”**
+
+AgentGym is built to answer a different question:
+
+> **“Which repository instructions measurably make my coding agent better — including on tasks they were not selected on?”**
 
 ## Contributing
 
-AgentGym is early and intentionally small. Issues, experiments, reproducible failure cases, agent adapters, and evaluation ideas are welcome.
-
-If AgentGym helps your coding-agent workflow, consider starring the repository — it makes the project easier for other agent builders to discover.
+Reproducible failure cases, new mutation strategies, agent adapters, and evaluation ideas are welcome. If AgentGym is useful to you, starring the repository helps other agent builders discover it.
 
 ## License
 

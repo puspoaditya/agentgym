@@ -1,7 +1,7 @@
 {
   "name": "kodematik",
-  "version": "0.5.1",
-  "description": "Train coding agents on your own codebase: benchmark, evolve instructions, validate, retest.",
+  "version": "0.6.0",
+  "description": "Train coding agents on your own codebase: qualify regressions, benchmark, evolve instructions, validate, retest.",
   "type": "module",
   "bin": { "kodematik": "./src/cli.js" },
   "scripts": {
@@ -9,7 +9,7 @@
     "start": "node src/cli.js",
     "check": "node --check src/cli.js && node --check src/core.js && node --check src/mutations.js && node --check src/agents/openrouter.js"
   },
-  "keywords": ["ai", "coding-agent", "agents", "benchmark", "agents-md", "agent-skills", "codex", "openrouter", "deepseek", "evaluation"],
+  "keywords": ["ai", "coding-agent", "agents", "benchmark", "regression", "agents-md", "agent-skills", "codex", "openrouter", "deepseek", "evaluation"],
   "license": "MIT",
   "engines": { "node": ">=20" }
 }

@@ -27,6 +27,10 @@ on:
         description: Mutation candidates
         required: true
         default: '5'
+      max_turns:
+        description: Maximum tool-call turns per agent task
+        required: true
+        default: '8'
       model:
         description: Optional model; OpenRouter defaults to deepseek/deepseek-v4-flash
         required: false
@@ -45,6 +49,7 @@ jobs:
       TASKS: ${{ inputs.tasks }}
       HOLDOUT: ${{ inputs.holdout }}
       CANDIDATES: ${{ inputs.candidates }}
+      MAX_TURNS: ${{ inputs.max_turns }}
       MODEL: ${{ inputs.model }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -69,6 +74,7 @@ jobs:
           [[ "$TASKS" =~ ^[1-9][0-9]*$ ]] || { echo 'tasks must be a positive integer'; exit 2; }
           [[ "$HOLDOUT" =~ ^[1-9][0-9]*$ ]] || { echo 'holdout must be a positive integer'; exit 2; }
           [[ "$CANDIDATES" =~ ^[1-9][0-9]*$ ]] || { echo 'candidates must be a positive integer'; exit 2; }
+          [[ "$MAX_TURNS" =~ ^[1-9][0-9]*$ ]] || { echo 'max_turns must be a positive integer'; exit 2; }
           if [ "$AGENT" = "codex" ]; then
             [ -n "$OPENAI_API_KEY" ] || { echo 'Missing repository secret OPENAI_API_KEY'; exit 2; }
           else
@@ -105,6 +111,7 @@ jobs:
             --tasks "$TASKS" \
             --holdout "$HOLDOUT" \
             --candidates "$CANDIDATES" \
+            --max-turns "$MAX_TURNS" \
             --install \
             "${MODEL_ARGS[@]}" | tee ../kodematik-benchmark.txt
 
@@ -122,6 +129,7 @@ jobs:
             echo "- Tasks: $TASKS"
             echo "- Holdout: $HOLDOUT%"
             echo "- Candidates: $CANDIDATES"
+            echo "- Max turns: $MAX_TURNS"
             echo "- Model: ${MODEL:-$DEFAULT_MODEL}"
             echo "- Commit: $GITHUB_SHA"
             echo

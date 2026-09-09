@@ -1,11 +1,12 @@
+<p align="center"><img src="assets/a_clean_modern_dark_themed_product_banner_hero_im.png" alt="Kodematik — Train your coding agent on your own codebase" width="100%"></p>
 <h1 align="center">Kodematik</h1>
 <p align="center"><strong>Train your coding agent on your own codebase.</strong></p>
 <p align="center"><em>Benchmark → Mutate → Compete → Validate → Keep or Reject.</em></p>
 <p align="center">
-  <a href="https://github.com/puspoaditya/agentgym/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/puspoaditya/agentgym/ci.yml?branch=main&style=for-the-badge&label=tests"></a>
+  <a href="https://github.com/puspoaditya/kodematik/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/puspoaditya/kodematik/ci.yml?branch=main&style=for-the-badge&label=tests"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-v0.4.0-7c3aed?style=for-the-badge">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge">
-  <img alt="GitHub stars" src="https://img.shields.io/github/stars/puspoaditya/agentgym?style=for-the-badge&logo=github">
+  <img alt="GitHub stars" src="https://img.shields.io/github/stars/puspoaditya/kodematik?style=for-the-badge&logo=github">
 </p>
 
 **Kodematik** is a local evaluation and evolution harness for coding agents. It turns repository history into executable replay tasks, benchmarks agent behavior in isolated Git worktrees, generates competing repository-instruction strategies, selects a winner on training tasks, and validates that winner on held-out tasks.
@@ -49,11 +50,9 @@ Tournament ranking is deterministic: **pass rate → verification score → lowe
 
 ## Quick start
 
-The repository is still temporarily named `agentgym` during the rebrand. After the GitHub repository itself is renamed to `kodematik`, use the new clone URL.
-
 ```bash
-git clone https://github.com/puspoaditya/agentgym.git
-cd agentgym
+git clone https://github.com/puspoaditya/kodematik.git
+cd kodematik
 npm install
 npm link
 
@@ -146,7 +145,8 @@ npm test
 - [x] GitHub Actions CI on Node.js 20 and 22
 - [x] Kodematik package and CLI rebrand
 - [x] Kodematik v0.4 skill bundle
-- [ ] Rename GitHub repository to `kodematik`
+- [x] Rename GitHub repository to `kodematik`
+- [x] Kodematik hero banner
 - [ ] Stronger bug-fix task qualification
 - [ ] Historical dependency-install strategies
 - [ ] Generated repo-specific mutations

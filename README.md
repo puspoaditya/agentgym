@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/agentgym-banner.png" alt="AgentGym — Train your coding agent on your own codebase" width="100%">
+  <img src="assets/agentgym-banner.svg" alt="AgentGym — Train your coding agent on your own codebase" width="100%">
 </p>
 
 # AgentGym

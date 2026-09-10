@@ -4,9 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
-test('help exposes Kodematik v0.6 qualified benchmark options',()=>{
+test('help exposes Kodematik v0.6.1 qualification diagnostics',()=>{
   const out=execFileSync(process.execPath,[join(root,'src','cli.js'),'help'],{encoding:'utf8'});
-  assert.match(out,/Kodematik v0\.6\.0/);
+  assert.match(out,/Kodematik v0\.6\.1/);
   assert.match(out,/kodematik evolve/);
   assert.match(out,/--agent codex\|openrouter/);
   assert.match(out,/deepseek\/deepseek-v4-flash/);
@@ -16,7 +16,8 @@ test('help exposes Kodematik v0.6 qualified benchmark options',()=>{
   assert.match(out,/--candidates N/);
   assert.match(out,/--max-turns N/);
   assert.match(out,/--max-turns 8/);
-  assert.match(out,/Qualified Benchmarks/);
-  assert.match(out,/historical parent fails verification/);
+  assert.match(out,/Qualification Diagnostics/);
+  assert.match(out,/Fix-like commit messages are prioritized/);
+  assert.match(out,/zero AI calls/);
   assert.match(out,/--install/);
 });

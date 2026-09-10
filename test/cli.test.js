@@ -4,9 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
-test('help exposes Kodematik v0.6.5 historical package manager runtime',()=>{
+test('help exposes Kodematik v0.6.6 historical verification compatibility',()=>{
   const out=execFileSync(process.execPath,[join(root,'src','cli.js'),'help'],{encoding:'utf8'});
-  assert.match(out,/Kodematik v0\.6\.5/);
+  assert.match(out,/Kodematik v0\.6\.6/);
   assert.match(out,/kodematik qualify/);
   assert.match(out,/kodematik evolve/);
   assert.match(out,/--agent codex\|openrouter/);
@@ -16,10 +16,11 @@ test('help exposes Kodematik v0.6.5 historical package manager runtime',()=>{
   assert.match(out,/--holdout PERCENT/);
   assert.match(out,/--candidates N/);
   assert.match(out,/--max-turns N/);
-  assert.match(out,/Historical Package Manager Runtime/);
-  assert.match(out,/compatible npm, pnpm, yarn, or bun version/);
-  assert.match(out,/package\.json#packageManager wins/);
-  assert.match(out,/zero coding-agent API calls/);
-  assert.match(out,/two-run ground-truth guards remain unchanged/);
+  assert.match(out,/Historical Verification Compatibility/);
+  assert.match(out,/Historical CI verification entrypoints/);
+  assert.match(out,/parent verification plan is locked/);
+  assert.match(out,/Ground-truth failures are classified/);
+  assert.match(out,/Historical Node \+ package-manager pairing/);
+  assert.match(out,/token-free/);
   assert.match(out,/--install/);
 });

@@ -4,9 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
-test('help exposes Kodematik v0.6.3 better task qualification',()=>{
+test('help exposes Kodematik v0.6.4.1 runtime audit and dependency diagnostics',()=>{
   const out=execFileSync(process.execPath,[join(root,'src','cli.js'),'help'],{encoding:'utf8'});
-  assert.match(out,/Kodematik v0\.6\.3/);
+  assert.match(out,/Kodematik v0\.6\.4\.1/);
   assert.match(out,/kodematik evolve/);
   assert.match(out,/--agent codex\|openrouter/);
   assert.match(out,/deepseek\/deepseek-v4-flash/);
@@ -15,10 +15,11 @@ test('help exposes Kodematik v0.6.3 better task qualification',()=>{
   assert.match(out,/--holdout PERCENT/);
   assert.match(out,/--candidates N/);
   assert.match(out,/--max-turns N/);
-  assert.match(out,/Better Task Qualification/);
-  assert.match(out,/same failing verification signature twice/);
-  assert.match(out,/ground-truth patches must pass verification twice/);
-  assert.match(out,/refresh dependencies/);
+  assert.match(out,/Runtime Audit \+ Dependency Compatibility/);
+  assert.match(out,/Historical Node selection is reported per task/);
+  assert.match(out,/Dependency failures are classified/);
+  assert.match(out,/Install commands and package managers/);
+  assert.match(out,/two-run ground-truth guards remain unchanged/);
   assert.match(out,/token-free/);
   assert.match(out,/--install/);
 });

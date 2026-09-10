@@ -34,12 +34,15 @@ test('.nvmrc overrides historical CI',()=>{
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
-test('Node 14 without a lockfile pairs with npm 6',()=>{
+test('legacy Node releases pair with era-compatible npm versions',()=>{
   const dir=fixture();
   try{
-    writeFileSync(join(dir,'package.json'),JSON.stringify({engines:{node:'>=12'}}));
-    const pm=detectHistoricalPackageManager(dir,14);
-    assert.deepEqual(pm,{name:'npm',version:'6',source:'node-compatibility'});
+    writeFileSync(join(dir,'package.json'),'{}');
+    assert.deepEqual(detectHistoricalPackageManager(dir,4),{name:'npm',version:'2.15.11',source:'node-bundled-era'});
+    assert.deepEqual(detectHistoricalPackageManager(dir,6),{name:'npm',version:'3.10.10',source:'node-bundled-era'});
+    assert.deepEqual(detectHistoricalPackageManager(dir,8),{name:'npm',version:'5.6.0',source:'node-bundled-era'});
+    assert.deepEqual(detectHistoricalPackageManager(dir,10),{name:'npm',version:'6',source:'node-compatibility'});
+    assert.deepEqual(detectHistoricalPackageManager(dir,14),{name:'npm',version:'6',source:'node-compatibility'});
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -65,6 +68,12 @@ test('package manager command is wrapped with both historical Node and npm',()=>
   const [bin,args]=commandForRuntime('npm',['install'],{currentNodeMajor:22,selectedNodeMajor:14,packageManager:'npm',packageManagerVersion:'6'});
   assert.equal(bin,'npx');
   assert.deepEqual(args,['--yes','--package','node@14','--package','npm@6','npm','install']);
+});
+
+test('legacy package manager command uses exact bundled-era npm',()=>{
+  const [bin,args]=commandForRuntime('npm',['rebuild'],{currentNodeMajor:22,selectedNodeMajor:4,packageManager:'npm',packageManagerVersion:'2.15.11'});
+  assert.equal(bin,'npx');
+  assert.deepEqual(args,['--yes','--package','node@4','--package','npm@2.15.11','npm','rebuild']);
 });
 
 test('node command is wrapped with selected historical runtime',()=>{

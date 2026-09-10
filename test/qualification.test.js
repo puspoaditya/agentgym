@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { qualificationReason, prioritizeCommits } from '../src/qualification.js';
 
 test('qualificationReason classifies rejection causes',()=>{
-  assert.equal(qualificationReason({preparation:{ok:false},before:[],regressionDetected:false,groundTruthPass:false}),'dependency-failure');
-  assert.equal(qualificationReason({preparation:{ok:true},before:[],regressionDetected:false,groundTruthPass:false}),'no-verification');
-  assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:true}],regressionDetected:false,groundTruthPass:false}),'no-regression');
-  assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,groundTruthPass:false}),'ground-truth-failed');
-  assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,groundTruthPass:true}),'qualified');
+  assert.equal(qualificationReason({preparation:{ok:false},before:[],regressionDetected:false,stableRegression:false,groundTruthPass:false}),'dependency-failure');
+  assert.equal(qualificationReason({preparation:{ok:true},before:[],regressionDetected:false,stableRegression:false,groundTruthPass:false}),'no-verification');
+  assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:true}],regressionDetected:false,stableRegression:false,groundTruthPass:false}),'no-regression');
+  assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,stableRegression:false,groundTruthPass:false}),'unstable-regression');
+  assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,stableRegression:true,groundTruthPass:false}),'ground-truth-failed');
+  assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,stableRegression:true,groundTruthPass:true}),'qualified');
 });
 
 test('prioritizeCommits moves fix-like subjects ahead while preserving order',()=>{

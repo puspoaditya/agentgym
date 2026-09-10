@@ -8,17 +8,19 @@ import {
   resetWorktreeTo,
   dependencyInstallCommand,
   verificationCommands,
+  packageManager,
 } from './core.js';
 import { detectHistoricalRuntime, commandForRuntime, runtimeSummary } from './runtime.js';
 
 const FIX_PATTERN=/\b(fix(?:ed|es)?|bug(?:fix)?|regression|correct(?:ion|ed|s)?|repair|resolve[ds]?|patch|crash|broken|failure|incorrect|wrong)\b/i;
-const DEPENDENCY_FILES=new Set(['package.json','package-lock.json','npm-shrinkwrap.json','yarn.lock','pnpm-lock.yaml']);
+const DEPENDENCY_FILES=new Set(['package.json','package-lock.json','npm-shrinkwrap.json','yarn.lock','pnpm-lock.yaml','bun.lock','bun.lockb']);
 
 function failedChecks(results=[]){return results.filter(x=>!x.ok).map(x=>`${x.name}:${x.status}`).sort();}
 function failureSignature(results=[]){return failedChecks(results).join('|');}
 function touchesDependencies(task){return (task.touchedFiles||[]).some(file=>DEPENDENCY_FILES.has(file.split('/').pop())||DEPENDENCY_FILES.has(file));}
+export function classifyDependencyFailure(preparation={}){const text=`${preparation.stderr||''}\n${preparation.stdout||''}`.toLowerCase();if(/unsupported engine|ebadengine|engine .*node/.test(text))return'node-engine';if(/lockfile|package-lock|npm-shrinkwrap|frozen-lockfile|out of date|synchronized/.test(text))return'lockfile';if(/eresolve|dependency conflict|peer dep|peer dependency/.test(text))return'dependency-resolution';if(/not found|enoent|command not found|could not determine executable/.test(text))return'missing-tool';if(/network|econn|etimedout|enotfound|fetch failed|socket/.test(text))return'network';return'install-command';}
 function runtimeShell(bin,args,cwd,runtime,{timeout=180000}={}){const[runtimeBin,runtimeArgs]=commandForRuntime(bin,args,runtime);return shell(runtimeBin,runtimeArgs,{cwd,allowFailure:true,timeout});}
-function installForRuntime(cwd,runtime,{timeout=300000}={}){const[bin,args]=dependencyInstallCommand(cwd),r=runtimeShell(bin,args,cwd,runtime,{timeout});return{ok:r.status===0,skipped:false,command:[bin,...args].join(' '),runtimeCommand:commandForRuntime(bin,args,runtime).flat().join(' '),status:r.status,stdout:r.stdout,stderr:r.stderr};}
+function installForRuntime(cwd,runtime,{timeout=300000}={}){const[bin,args]=dependencyInstallCommand(cwd),r=runtimeShell(bin,args,cwd,runtime,{timeout}),result={ok:r.status===0,skipped:false,packageManager:packageManager(cwd),command:[bin,...args].join(' '),runtimeCommand:commandForRuntime(bin,args,runtime).flat().join(' '),status:r.status,stdout:r.stdout,stderr:r.stderr};return{...result,failureKind:result.ok?null:classifyDependencyFailure(result)};}
 function verifyForRuntime(cwd,runtime,commands=verificationCommands(cwd)){return commands.map(({name,command:[bin,args]})=>{const started=Date.now(),r=runtimeShell(bin,args,cwd,runtime);return{name,ok:r.status===0,status:r.status,ms:Date.now()-started,stdout:r.stdout,stderr:r.stderr};});}
 
 export function qualificationReason(q){
@@ -41,7 +43,7 @@ export function qualifyTaskDetailed(repo,task,{installDependencies=false,stabili
   try{
     resetWorktreeTo(wt,task.parent);
     const runtime=historicalRuntime?detectHistoricalRuntime(wt):{currentNodeMajor:Number(process.versions.node.split('.')[0]),selectedNodeMajor:Number(process.versions.node.split('.')[0]),source:'current-runtime',workflowNodeMajors:[],engineRange:null,usesHistoricalNode:false};
-    const preparation=installDependencies?installForRuntime(wt,runtime):{ok:true,skipped:true,command:null,status:0,stdout:'',stderr:''};
+    const preparation=installDependencies?installForRuntime(wt,runtime):{ok:true,skipped:true,command:null,status:0,stdout:'',stderr:'',packageManager:packageManager(wt),failureKind:null};
     const commands=preparation.ok?verificationCommands(wt):[];
     const beforeRuns=[];
     if(preparation.ok&&commands.length){for(let i=0;i<Math.max(1,stabilityRuns);i++)beforeRuns.push(verifyForRuntime(wt,runtime,commands));}
@@ -52,6 +54,7 @@ export function qualifyTaskDetailed(repo,task,{installDependencies=false,stabili
 
     let patchApplied=null;
     let postPatchPreparation=null;
+    let postRuntime=null;
     let groundTruthRunsResults=[];
     let groundTruthPass=false;
 
@@ -62,9 +65,9 @@ export function qualifyTaskDetailed(repo,task,{installDependencies=false,stabili
       rmSync(patchPath,{force:true});
       patchApplied=patch.status===0;
       if(patchApplied){
-        const postRuntime=historicalRuntime?detectHistoricalRuntime(wt):runtime;
+        postRuntime=historicalRuntime?detectHistoricalRuntime(wt):runtime;
         if(installDependencies&&touchesDependencies(task))postPatchPreparation=installForRuntime(wt,postRuntime);
-        else postPatchPreparation={ok:true,skipped:true,command:null,status:0,stdout:'',stderr:''};
+        else postPatchPreparation={ok:true,skipped:true,command:null,status:0,stdout:'',stderr:'',packageManager:packageManager(wt),failureKind:null};
         if(postPatchPreparation.ok){
           const postCommands=verificationCommands(wt);
           for(let i=0;i<Math.max(1,groundTruthRuns);i++)groundTruthRunsResults.push(verifyForRuntime(wt,postRuntime,postCommands));
@@ -74,16 +77,16 @@ export function qualifyTaskDetailed(repo,task,{installDependencies=false,stabili
     }
 
     const usable=preparation.ok&&before.length>0&&stableRegression&&patchApplied===true&&(postPatchPreparation?.ok??true)&&groundTruthPass;
-    return{taskId:task.id,preparation,before,beforeRuns,regressionDetected,stableRegression,failureSignature:firstSignature,failedChecks:failedChecks(before),patchApplied,postPatchPreparation,dependencyRefreshNeeded:touchesDependencies(task),groundTruthRuns:groundTruthRunsResults,groundTruthPass,groundTruthFailedChecks:groundTruthRunsResults.flatMap(failedChecks),runtime,runtimeSummary:runtimeSummary(runtime),usable};
+    return{taskId:task.id,preparation,before,beforeRuns,regressionDetected,stableRegression,failureSignature:firstSignature,failedChecks:failedChecks(before),patchApplied,postPatchPreparation,dependencyRefreshNeeded:touchesDependencies(task),groundTruthRuns:groundTruthRunsResults,groundTruthPass,groundTruthFailedChecks:groundTruthRunsResults.flatMap(failedChecks),runtime,runtimeSummary:runtimeSummary(runtime),postRuntime,postRuntimeSummary:postRuntime?runtimeSummary(postRuntime):null,usable};
   }finally{removeWorktree(repo,wt);}
 }
 
 export function discoverQualifiedTasksSmart(repo,{limit=10,scanLimit=Math.max(limit*10,50),installDependencies=false,historicalRuntime=true}={}){
   const r=shell('git',['log',`--max-count=${scanLimit}`,'--format=%H%x09%s'],{cwd:repo,allowFailure:true});
   const counts={qualified:0,'dependency-failure':0,'no-verification':0,'no-regression':0,'unstable-regression':0,'patch-apply-failure':0,'post-patch-dependency-failure':0,'ground-truth-verification-failure':0};
-  if(r.status!==0)return{tasks:[],scanned:0,rejected:0,counts,prioritized:0,diagnostics:[],runtimeCounts:{}};
+  if(r.status!==0)return{tasks:[],scanned:0,rejected:0,counts,prioritized:0,diagnostics:[],runtimeCounts:{},dependencyFailureCounts:{}};
   const commits=r.stdout.split('\n').filter(Boolean).map((line,index)=>{const[hash,...parts]=line.split('\t');return{hash,subject:parts.join('\t'),index};});
-  const ordered=prioritizeCommits(commits),tasks=[],diagnostics=[],runtimeCounts={};
+  const ordered=prioritizeCommits(commits),tasks=[],diagnostics=[],runtimeCounts={},dependencyFailureCounts={};
   let scanned=0,prioritized=0;
   for(const commit of ordered){
     if(tasks.length>=limit)break;
@@ -96,8 +99,10 @@ export function discoverQualifiedTasksSmart(repo,{limit=10,scanLimit=Math.max(li
     counts[reason]=(counts[reason]||0)+1;
     const runtimeKey=`node-${qualification.runtime.selectedNodeMajor}:${qualification.runtime.source}`;
     runtimeCounts[runtimeKey]=(runtimeCounts[runtimeKey]||0)+1;
-    if(reason==='qualified')tasks.push({...task,qualification});
-    else diagnostics.push({taskId:task.id,title:task.title,reason,failedChecks:qualification.failedChecks,groundTruthFailedChecks:qualification.groundTruthFailedChecks,dependencyRefreshNeeded:qualification.dependencyRefreshNeeded,runtime:qualification.runtimeSummary});
+    const depFailure=reason==='dependency-failure'?qualification.preparation?.failureKind:reason==='post-patch-dependency-failure'?qualification.postPatchPreparation?.failureKind:null;
+    if(depFailure)dependencyFailureCounts[depFailure]=(dependencyFailureCounts[depFailure]||0)+1;
+    const diagnostic={taskId:task.id,title:task.title,reason,failedChecks:qualification.failedChecks,groundTruthFailedChecks:qualification.groundTruthFailedChecks,dependencyRefreshNeeded:qualification.dependencyRefreshNeeded,runtime:qualification.runtimeSummary,postRuntime:qualification.postRuntimeSummary,packageManager:qualification.preparation?.packageManager,installCommand:qualification.preparation?.command,runtimeInstallCommand:qualification.preparation?.runtimeCommand,dependencyFailure:depFailure};
+    if(reason==='qualified')tasks.push({...task,qualification});else diagnostics.push(diagnostic);
   }
-  return{tasks,scanned,rejected:scanned-tasks.length,counts,prioritized,diagnostics,runtimeCounts};
+  return{tasks,scanned,rejected:scanned-tasks.length,counts,prioritized,diagnostics,runtimeCounts,dependencyFailureCounts};
 }

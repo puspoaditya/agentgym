@@ -1,7 +1,7 @@
 {
   "name": "kodematik",
-  "version": "0.6.4.1",
-  "description": "Train coding agents on your own codebase with stable regression qualification, historical runtime compatibility, and dependency diagnostics.",
+  "version": "0.6.5",
+  "description": "Train coding agents with stable regression qualification, historical Node and package-manager pairing, and token-free qualification audits.",
   "type": "module",
   "bin": { "kodematik": "./src/cli.js" },
   "scripts": {

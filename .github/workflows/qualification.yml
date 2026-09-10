@@ -1,0 +1,96 @@
+name: Qualification Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: Public GitHub repository in owner/name form
+        required: true
+        default: sindresorhus/p-map
+      tasks:
+        description: Number of regression-qualified replay tasks requested
+        required: true
+        default: '5'
+      scan_limit:
+        description: Maximum candidate commits to scan
+        required: true
+        default: '50'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TARGET_REPO: ${{ inputs.target_repo }}
+      TASKS: ${{ inputs.tasks }}
+      SCAN_LIMIT: ${{ inputs.scan_limit }}
+
+    steps:
+      - name: Checkout Kodematik
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo 'target_repo must be owner/name'; exit 2; }
+          [[ "$TASKS" =~ ^[1-9][0-9]*$ ]] || { echo 'tasks must be a positive integer'; exit 2; }
+          [[ "$SCAN_LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo 'scan_limit must be a positive integer'; exit 2; }
+
+      - name: Install Kodematik
+        run: |
+          npm install
+          npm link
+          kodematik help
+
+      - name: Clone qualification target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone "https://github.com/${TARGET_REPO}.git" qualification-target
+
+      - name: Run qualification audit
+        working-directory: qualification-target
+        shell: bash
+        run: |
+          set -euo pipefail
+          kodematik qualify \
+            --tasks "$TASKS" \
+            --scan-limit "$SCAN_LIMIT" \
+            --install | tee ../kodematik-qualification.txt
+
+      - name: Write run metadata
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# Kodematik qualification audit"
+            echo
+            echo "- Target: $TARGET_REPO"
+            echo "- Tasks requested: $TASKS"
+            echo "- Scan limit: $SCAN_LIMIT"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Coding-agent API calls: 0"
+            echo
+            echo '```text'
+            if [ -f kodematik-qualification.txt ]; then cat kodematik-qualification.txt; else echo 'Qualification did not produce a report.'; fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload qualification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kodematik-qualification-${{ github.run_id }}
+          path: kodematik-qualification.txt
+          if-no-files-found: warn

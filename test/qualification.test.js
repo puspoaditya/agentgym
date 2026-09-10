@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { qualificationReason, prioritizeCommits } from '../src/qualification.js';
+import { qualificationReason, prioritizeCommits, classifyDependencyFailure } from '../src/qualification.js';
 
 test('qualificationReason classifies rejection causes',()=>{
   assert.equal(qualificationReason({preparation:{ok:false},before:[],regressionDetected:false,stableRegression:false,groundTruthPass:false}),'dependency-failure');
@@ -11,6 +11,15 @@ test('qualificationReason classifies rejection causes',()=>{
   assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,stableRegression:true,patchApplied:true,postPatchPreparation:{ok:false},groundTruthPass:false}),'post-patch-dependency-failure');
   assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,stableRegression:true,patchApplied:true,postPatchPreparation:{ok:true},groundTruthPass:false}),'ground-truth-verification-failure');
   assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,stableRegression:true,patchApplied:true,postPatchPreparation:{ok:true},groundTruthPass:true}),'qualified');
+});
+
+test('classifyDependencyFailure separates common install causes',()=>{
+  assert.equal(classifyDependencyFailure({stderr:'npm ERR! code EBADENGINE Unsupported engine'}),'node-engine');
+  assert.equal(classifyDependencyFailure({stderr:'npm ci can only install when package-lock.json is in sync'}),'lockfile');
+  assert.equal(classifyDependencyFailure({stderr:'npm ERR! ERESOLVE unable to resolve dependency tree'}),'dependency-resolution');
+  assert.equal(classifyDependencyFailure({stderr:'sh: pnpm: command not found'}),'missing-tool');
+  assert.equal(classifyDependencyFailure({stderr:'network request failed ECONNRESET'}),'network');
+  assert.equal(classifyDependencyFailure({stderr:'arbitrary install script exited 1'}),'install-command');
 });
 
 test('prioritizeCommits moves fix-like subjects ahead while preserving order',()=>{

@@ -1,7 +1,7 @@
 {
   "name": "kodematik",
-  "version": "0.6.1",
-  "description": "Train coding agents on your own codebase: qualify regressions, benchmark, evolve instructions, validate, retest.",
+  "version": "0.6.2",
+  "description": "Train coding agents on your own codebase: qualify stable regressions, benchmark, evolve instructions, validate, retest.",
   "type": "module",
   "bin": { "kodematik": "./src/cli.js" },
   "scripts": {

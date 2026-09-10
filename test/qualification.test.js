@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { qualificationReason, prioritizeCommits, classifyDependencyFailure } from '../src/qualification.js';
+import { qualificationReason, prioritizeCommits, classifyDependencyFailure, qualificationFingerprint, qualificationSetFingerprint } from '../src/qualification.js';
 
 test('qualificationReason classifies rejection causes',()=>{
   assert.equal(qualificationReason({preparation:{ok:false},before:[],regressionDetected:false,stableRegression:false,groundTruthPass:false}),'dependency-failure');
@@ -31,4 +31,15 @@ test('prioritizeCommits moves fix-like subjects ahead while preserving order',()
     {hash:'5',subject:'handle incorrect result',index:4},
   ];
   assert.deepEqual(prioritizeCommits(commits).map(x=>x.hash),['2','4','5','1','3']);
+});
+
+test('qualification fingerprints are deterministic and environment-sensitive',()=>{
+  const task={id:'abc123',commit:'commit-a',parent:'parent-a'};
+  const base={runtime:{selectedNodeMajor:14,source:'historical-ci',packageManager:'npm',packageManagerVersion:'6',packageManagerSource:'node-compatibility'},postRuntime:{selectedNodeMajor:14,source:'historical-ci',packageManager:'npm',packageManagerVersion:'6',packageManagerSource:'node-compatibility'},dependencyResolutionMode:'commit-date-cutoff',dependencyResolutionDate:'2021-01-01T00:00:00.000Z',dependencyRefreshNeeded:false,verificationSource:'historical-ci',verificationCommands:['npm test'],failureSignature:'ci:test:1',beforeFailureDetails:[{name:'ci:test',kind:'test',command:'npm test'}],groundTruthRuns:[[{name:'ci:test',ok:true,status:0}],[{name:'ci:test',ok:true,status:0}]]};
+  const a=qualificationFingerprint(task,base),b=qualificationFingerprint(task,structuredClone(base));
+  assert.equal(a,b);
+  assert.notEqual(a,qualificationFingerprint(task,{...base,runtime:{...base.runtime,selectedNodeMajor:16}}));
+  const setA=qualificationSetFingerprint([{id:task.id,qualification:{fingerprint:a}}]);
+  const setB=qualificationSetFingerprint([{id:task.id,qualification:{fingerprint:b}}]);
+  assert.equal(setA,setB);
 });

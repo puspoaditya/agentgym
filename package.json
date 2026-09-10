@@ -1,13 +1,13 @@
 {
   "name": "kodematik",
-  "version": "0.6.3",
-  "description": "Train coding agents on your own codebase: qualify stable regressions, diagnose historical failures, benchmark, evolve instructions, validate, retest.",
+  "version": "0.6.4",
+  "description": "Train coding agents on your own codebase with stable regression qualification and historical runtime compatibility.",
   "type": "module",
   "bin": { "kodematik": "./src/cli.js" },
   "scripts": {
     "test": "node --test",
     "start": "node src/cli.js",
-    "check": "node --check src/cli.js && node --check src/core.js && node --check src/qualification.js && node --check src/mutations.js && node --check src/agents/openrouter.js"
+    "check": "node --check src/cli.js && node --check src/core.js && node --check src/qualification.js && node --check src/runtime.js && node --check src/mutations.js && node --check src/agents/openrouter.js"
   },
   "keywords": ["ai", "coding-agent", "agents", "benchmark", "regression", "agents-md", "agent-skills", "codex", "openrouter", "deepseek", "evaluation"],
   "license": "MIT",

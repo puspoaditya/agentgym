@@ -5,9 +5,9 @@ import { shell, makeTaskFromCommit, makeWorktree, removeWorktree, resetWorktreeT
 import { detectHistoricalRuntime, commandForRuntime, runtimeSummary } from './runtime.js';
 import { historicalVerificationCommands, classifyVerificationFailure, verificationOutputSnippet } from './verification.js';
 import { installForHistoricalRuntime, classifyDependencyFailure, historicalResolutionDate } from './dependencies.js';
+import { FIX_PATTERN, taskUsefulness, prioritizeTasks, usefulnessSummary } from './task-quality.js';
 export { classifyDependencyFailure } from './dependencies.js';
 
-const FIX_PATTERN=/\b(fix(?:ed|es)?|bug(?:fix)?|regression|correct(?:ion|ed|s)?|repair|resolve[ds]?|patch|crash|broken|failure|incorrect|wrong)\b/i;
 const DEPENDENCY_FILES=new Set(['package.json','package-lock.json','npm-shrinkwrap.json','yarn.lock','pnpm-lock.yaml','bun.lock','bun.lockb']);
 function failedChecks(results=[]){return results.filter(x=>!x.ok).map(x=>`${x.name}:${x.status}`).sort();}
 function failureSignature(results=[]){return failedChecks(results).join('|');}
@@ -56,28 +56,30 @@ export function qualifyTaskDetailed(repo,task,{installDependencies=false,stabili
 }
 
 export function discoverQualifiedTasksSmart(repo,{limit=10,scanLimit=Math.max(limit*10,50),installDependencies=false,historicalRuntime=true,reproducibilityRuns=2}={}){
-  const r=shell('git',['log',`--max-count=${scanLimit}`,'--format=%H%x09%s'],{cwd:repo,allowFailure:true}),counts={qualified:0,'non-reproducible-qualified':0,'dependency-failure':0,'no-verification':0,'no-regression':0,'unstable-regression':0,'patch-apply-failure':0,'post-patch-dependency-failure':0,'ground-truth-verification-failure':0};
-  if(r.status!==0)return{tasks:[],scanned:0,rejected:0,counts,prioritized:0,diagnostics:[],runtimeCounts:{},dependencyFailureCounts:{},verificationFailureCounts:{},resolutionCounts:{},setFingerprint:null};
-  const commits=r.stdout.split('\n').filter(Boolean).map((line,index)=>{const[hashValue,...parts]=line.split('\t');return{hash:hashValue,subject:parts.join('\t'),index};}),ordered=prioritizeCommits(commits),tasks=[],diagnostics=[],runtimeCounts={},dependencyFailureCounts={},verificationFailureCounts={},resolutionCounts={};let scanned=0,prioritized=0;
-  for(const commit of ordered){
-    if(tasks.length>=limit)break;const task=makeTaskFromCommit(repo,commit.hash);if(!task)continue;scanned++;if(FIX_PATTERN.test(commit.subject))prioritized++;
+  const r=shell('git',['log',`--max-count=${scanLimit}`,'--format=%H%x09%s'],{cwd:repo,allowFailure:true}),counts={qualified:0,'low-usefulness-qualified':0,'non-reproducible-qualified':0,'dependency-failure':0,'no-verification':0,'no-regression':0,'unstable-regression':0,'patch-apply-failure':0,'post-patch-dependency-failure':0,'ground-truth-verification-failure':0};
+  if(r.status!==0)return{tasks:[],scanned:0,rejected:0,counts,prioritized:0,diagnostics:[],runtimeCounts:{},dependencyFailureCounts:{},verificationFailureCounts:{},resolutionCounts:{},qualitySummary:{strong:0,useful:0,low:0,eligible:0},setFingerprint:null};
+  const commits=r.stdout.split('\n').filter(Boolean).map((line,index)=>{const[hashValue,...parts]=line.split('\t');return{hash:hashValue,subject:parts.join('\t'),index};});
+  const candidates=commits.map(commit=>{const task=makeTaskFromCommit(repo,commit.hash);return task?{...commit,task,usefulness:taskUsefulness(task)}:null;}).filter(Boolean),ordered=prioritizeTasks(candidates),qualitySummary=usefulnessSummary(candidates),tasks=[],diagnostics=[],runtimeCounts={},dependencyFailureCounts={},verificationFailureCounts={},resolutionCounts={};let scanned=0,prioritized=0;
+  for(const entry of ordered){
+    if(tasks.length>=limit)break;const task=entry.task,usefulness=entry.usefulness;scanned++;if(usefulness.fixLike)prioritized++;
     const options={installDependencies,stabilityRuns:2,groundTruthRuns:2,historicalRuntime},qualification=qualifyTaskDetailed(repo,task,options),initialReason=qualificationReason(qualification);
     const runtimeKey=`node-${qualification.runtime.selectedNodeMajor}:${qualification.runtime.source}:${qualification.runtime.packageManager}@${qualification.runtime.packageManagerVersion}`;runtimeCounts[runtimeKey]=(runtimeCounts[runtimeKey]||0)+1;
     const mode=qualification.dependencyResolutionMode||'unknown';resolutionCounts[mode]=(resolutionCounts[mode]||0)+1;
     let reason=initialReason,replayReason=null,replayFingerprint=null,fingerprint=null;
-    if(initialReason==='qualified'){
+    if(initialReason==='qualified'&&!usefulness.benchmarkEligible){reason='low-usefulness-qualified';}
+    else if(initialReason==='qualified'){
       fingerprint=qualificationFingerprint(task,qualification);let reproduced=true;
       for(let run=1;run<Math.max(1,reproducibilityRuns);run++){
         const replay=qualifyTaskDetailed(repo,task,options);replayReason=qualificationReason(replay);replayFingerprint=qualificationFingerprint(task,replay);
         if(replayReason!=='qualified'||replayFingerprint!==fingerprint){reproduced=false;break;}
       }
-      if(!reproduced)reason='non-reproducible-qualified';else{qualification.reproducible=true;qualification.fingerprint=fingerprint;qualification.replayFingerprint=replayFingerprint||fingerprint;}
+      if(!reproduced)reason='non-reproducible-qualified';else{qualification.reproducible=true;qualification.fingerprint=fingerprint;qualification.replayFingerprint=replayFingerprint||fingerprint;qualification.usefulness=usefulness;}
     }
     counts[reason]=(counts[reason]||0)+1;
     const depFailure=reason==='dependency-failure'?qualification.preparation?.failureKind:reason==='post-patch-dependency-failure'?qualification.postPatchPreparation?.failureKind:null;if(depFailure)dependencyFailureCounts[depFailure]=(dependencyFailureCounts[depFailure]||0)+1;
     if(reason==='ground-truth-verification-failure')for(const detail of qualification.groundTruthFailureDetails||[])verificationFailureCounts[detail.kind]=(verificationFailureCounts[detail.kind]||0)+1;
-    const diagnostic={taskId:task.id,title:task.title,reason,initialReason,replayReason,fingerprint,replayFingerprint,failedChecks:qualification.failedChecks,beforeFailureDetails:qualification.beforeFailureDetails,groundTruthFailedChecks:qualification.groundTruthFailedChecks,groundTruthFailureDetails:qualification.groundTruthFailureDetails,verificationSource:qualification.verificationSource,verificationCommands:qualification.verificationCommands,dependencyRefreshNeeded:qualification.dependencyRefreshNeeded,dependencyResolutionMode:qualification.dependencyResolutionMode,dependencyResolutionDate:qualification.dependencyResolutionDate,runtime:qualification.runtimeSummary,postRuntime:qualification.postRuntimeSummary,packageManager:qualification.preparation?.packageManager,packageManagerVersion:qualification.preparation?.packageManagerVersion,installCommand:qualification.preparation?.command,runtimeInstallCommand:qualification.preparation?.runtimeCommand,dependencyFailure:depFailure,failedInstallStep:qualification.preparation?.failedStep||qualification.postPatchPreparation?.failedStep||null};
-    if(reason==='qualified')tasks.push({...task,qualification});else diagnostics.push(diagnostic);
+    const diagnostic={taskId:task.id,title:task.title,reason,initialReason,replayReason,fingerprint,replayFingerprint,usefulness,failedChecks:qualification.failedChecks,beforeFailureDetails:qualification.beforeFailureDetails,groundTruthFailedChecks:qualification.groundTruthFailedChecks,groundTruthFailureDetails:qualification.groundTruthFailureDetails,verificationSource:qualification.verificationSource,verificationCommands:qualification.verificationCommands,dependencyRefreshNeeded:qualification.dependencyRefreshNeeded,dependencyResolutionMode:qualification.dependencyResolutionMode,dependencyResolutionDate:qualification.dependencyResolutionDate,runtime:qualification.runtimeSummary,postRuntime:qualification.postRuntimeSummary,packageManager:qualification.preparation?.packageManager,packageManagerVersion:qualification.preparation?.packageManagerVersion,installCommand:qualification.preparation?.command,runtimeInstallCommand:qualification.preparation?.runtimeCommand,dependencyFailure:depFailure,failedInstallStep:qualification.preparation?.failedStep||qualification.postPatchPreparation?.failedStep||null};
+    if(reason==='qualified')tasks.push({...task,usefulness,qualification});else diagnostics.push(diagnostic);
   }
-  return{tasks,scanned,rejected:scanned-tasks.length,counts,prioritized,diagnostics,runtimeCounts,dependencyFailureCounts,verificationFailureCounts,resolutionCounts,setFingerprint:qualificationSetFingerprint(tasks)};
+  return{tasks,scanned,rejected:scanned-tasks.length,counts,prioritized,diagnostics,runtimeCounts,dependencyFailureCounts,verificationFailureCounts,resolutionCounts,qualitySummary,setFingerprint:qualificationSetFingerprint(tasks)};
 }

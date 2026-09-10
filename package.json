@@ -1,13 +1,13 @@
 {
   "name": "kodematik",
-  "version": "0.6.6",
-  "description": "Train coding agents with stable regression qualification, historical runtime pairing, and locked historical CI verification.",
+  "version": "0.6.7",
+  "description": "Train coding agents with stable regression qualification, historical runtime pairing, locked CI verification, and commit-date dependency resolution.",
   "type": "module",
   "bin": { "kodematik": "./src/cli.js" },
   "scripts": {
     "test": "node --test",
     "start": "node src/cli.js",
-    "check": "node --check src/cli.js && node --check src/core.js && node --check src/qualification.js && node --check src/runtime.js && node --check src/verification.js && node --check src/evaluation.js && node --check src/mutations.js && node --check src/agents/openrouter.js"
+    "check": "node --check src/cli.js && node --check src/core.js && node --check src/qualification.js && node --check src/runtime.js && node --check src/dependencies.js && node --check src/verification.js && node --check src/evaluation.js && node --check src/mutations.js && node --check src/agents/openrouter.js"
   },
   "keywords": ["ai", "coding-agent", "agents", "benchmark", "regression", "agents-md", "agent-skills", "codex", "openrouter", "deepseek", "evaluation"],
   "license": "MIT",

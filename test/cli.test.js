@@ -4,9 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
-test('help exposes Kodematik v0.6.8 legacy compatibility and reproducibility guard',()=>{
+test('help exposes Kodematik v0.6.9 benchmark integrity and task usefulness',()=>{
   const out=execFileSync(process.execPath,[join(root,'src','cli.js'),'help'],{encoding:'utf8'});
-  assert.match(out,/Kodematik v0\.6\.8/);
+  assert.match(out,/Kodematik v0\.6\.9/);
   assert.match(out,/kodematik qualify/);
   assert.match(out,/kodematik evolve/);
   assert.match(out,/--agent codex\|openrouter/);
@@ -16,13 +16,13 @@ test('help exposes Kodematik v0.6.8 legacy compatibility and reproducibility gua
   assert.match(out,/--holdout PERCENT/);
   assert.match(out,/--candidates N/);
   assert.match(out,/--max-turns N/);
-  assert.match(out,/Legacy Toolchain Compatibility \+ Reproducibility Guard/);
-  assert.match(out,/Node 4 → npm 2\.15\.11/);
-  assert.match(out,/Node 6 → npm 3\.10\.10/);
-  assert.match(out,/Node 8 → npm 5\.6\.0/);
-  assert.match(out,/two-phase install/);
-  assert.match(out,/fresh worktree/);
-  assert.match(out,/qualified-set fingerprints/);
-  assert.match(out,/token-free/);
+  assert.match(out,/Benchmark Integrity \+ Task Usefulness/);
+  assert.match(out,/task usefulness/);
+  assert.match(out,/Low-usefulness/);
+  assert.match(out,/at least 3 benchmark-eligible/);
+  assert.match(out,/exact usable task IDs/);
+  assert.match(out,/relocked/);
+  assert.match(out,/PROVISIONAL/);
+  assert.match(out,/held-out evidence/);
   assert.match(out,/--install/);
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { detectHistoricalRuntime, detectHistoricalPackageManager, commandForRuntime } from '../src/runtime.js';
+import { detectHistoricalRuntime, detectHistoricalPackageManager, commandForRuntime, runtimeForVerificationPlan } from '../src/runtime.js';
 
 function fixture(){return mkdtempSync(join(tmpdir(),'kodematik-runtime-'));}
 
@@ -31,6 +31,21 @@ test('.nvmrc overrides historical CI',()=>{
     const runtime=detectHistoricalRuntime(dir);
     assert.equal(runtime.selectedNodeMajor,18);
     assert.equal(runtime.source,'.nvmrc');
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('selected CI job runtime overrides repository-wide maximum Node version',()=>{
+  const dir=fixture();
+  try{
+    writeFileSync(join(dir,'package.json'),JSON.stringify({}));
+    writeFileSync(join(dir,'package-lock.json'),JSON.stringify({lockfileVersion:3}));
+    const base={currentNodeMajor:22,selectedNodeMajor:26,source:'historical-ci',workflowNodeMajors:[26,20,12],engineRange:null,usesHistoricalNode:true,packageManager:'npm',packageManagerVersion:'10',packageManagerSource:'package-lock#3',verificationJobId:null,verificationToolchain:null};
+    const runtime=runtimeForVerificationPlan(dir,base,{jobId:'unit',toolchain:'node',nodeMajor:20});
+    assert.equal(runtime.selectedNodeMajor,20);
+    assert.equal(runtime.source,'historical-ci-job:unit');
+    assert.equal(runtime.packageManager,'npm');
+    assert.equal(runtime.packageManagerVersion,'10');
+    assert.equal(runtime.verificationJobId,'unit');
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 

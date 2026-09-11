@@ -1,7 +1,7 @@
 {
   "name": "kodematik",
-  "version": "0.6.9",
-  "description": "Train coding agents with benchmark task usefulness scoring, exact task-set integrity, held-out acceptance, historical replay, and reproducibility guards.",
+  "version": "0.6.10",
+  "description": "Train coding agents with job-scoped historical CI reconstruction, benchmark task usefulness scoring, exact task-set integrity, and reproducibility guards.",
   "type": "module",
   "bin": { "kodematik": "./src/cli.js" },
   "scripts": {

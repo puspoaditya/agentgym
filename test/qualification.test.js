@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { qualificationReason, prioritizeCommits, classifyDependencyFailure, qualificationFingerprint, qualificationSetFingerprint } from '../src/qualification.js';
+import { qualificationReason, prioritizeCommits, classifyDependencyFailure, qualificationFingerprint, qualificationSetFingerprint, DEFAULT_QUALIFICATION_BUDGET_MS, DEFAULT_VERIFICATION_TIMEOUT_MS, DEFAULT_INSTALL_TIMEOUT_MS } from '../src/qualification.js';
 
 test('qualificationReason classifies rejection causes',()=>{
+  assert.equal(qualificationReason({budgetExhausted:true,preparation:{ok:true}}),'qualification-budget-exhausted');
+  assert.equal(qualificationReason({dependencyTimedOut:true,preparation:{ok:false}}),'dependency-timeout');
+  assert.equal(qualificationReason({verificationTimedOut:true,preparation:{ok:true},before:[{ok:false}]}),'verification-timeout');
   assert.equal(qualificationReason({preparation:{ok:false},before:[],regressionDetected:false,stableRegression:false,groundTruthPass:false}),'dependency-failure');
   assert.equal(qualificationReason({preparation:{ok:true},before:[],regressionDetected:false,stableRegression:false,groundTruthPass:false}),'no-verification');
   assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:true}],regressionDetected:false,stableRegression:false,groundTruthPass:false}),'no-regression');
@@ -11,6 +14,13 @@ test('qualificationReason classifies rejection causes',()=>{
   assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,stableRegression:true,patchApplied:true,postPatchPreparation:{ok:false},groundTruthPass:false}),'post-patch-dependency-failure');
   assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,stableRegression:true,patchApplied:true,postPatchPreparation:{ok:true},groundTruthPass:false}),'ground-truth-verification-failure');
   assert.equal(qualificationReason({preparation:{ok:true},before:[{ok:false}],regressionDetected:true,stableRegression:true,patchApplied:true,postPatchPreparation:{ok:true},groundTruthPass:true}),'qualified');
+});
+
+test('bounded qualification defaults leave workflow reporting headroom',()=>{
+  assert.equal(DEFAULT_QUALIFICATION_BUDGET_MS,75*60*1000);
+  assert.equal(DEFAULT_VERIFICATION_TIMEOUT_MS,60*1000);
+  assert.equal(DEFAULT_INSTALL_TIMEOUT_MS,120*1000);
+  assert.ok(DEFAULT_QUALIFICATION_BUDGET_MS>DEFAULT_INSTALL_TIMEOUT_MS);
 });
 
 test('classifyDependencyFailure separates common install causes',()=>{

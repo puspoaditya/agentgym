@@ -4,9 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
-test('help exposes Kodematik v0.6.9 benchmark integrity and task usefulness',()=>{
+test('help exposes Kodematik v0.6.10 job-scoped historical CI reconstruction',()=>{
   const out=execFileSync(process.execPath,[join(root,'src','cli.js'),'help'],{encoding:'utf8'});
-  assert.match(out,/Kodematik v0\.6\.9/);
+  assert.match(out,/Kodematik v0\.6\.10/);
   assert.match(out,/kodematik qualify/);
   assert.match(out,/kodematik evolve/);
   assert.match(out,/--agent codex\|openrouter/);
@@ -16,13 +16,12 @@ test('help exposes Kodematik v0.6.9 benchmark integrity and task usefulness',()=
   assert.match(out,/--holdout PERCENT/);
   assert.match(out,/--candidates N/);
   assert.match(out,/--max-turns N/);
-  assert.match(out,/Benchmark Integrity \+ Task Usefulness/);
-  assert.match(out,/task usefulness/);
-  assert.match(out,/Low-usefulness/);
-  assert.match(out,/at least 3 benchmark-eligible/);
-  assert.match(out,/exact usable task IDs/);
-  assert.match(out,/relocked/);
-  assert.match(out,/PROVISIONAL/);
-  assert.match(out,/held-out evidence/);
+  assert.match(out,/Job-Scoped Historical CI Reconstruction/);
+  assert.match(out,/parsed per job/);
+  assert.match(out,/self-contained replayable CI job/);
+  assert.match(out,/Bun\/Deno smoke jobs/);
+  assert.match(out,/portable historical verification subset/);
+  assert.match(out,/exact task-set comparison/);
+  assert.match(out,/held-out KEEP gating/);
   assert.match(out,/--install/);
 });

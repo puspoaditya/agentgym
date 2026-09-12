@@ -17,6 +17,10 @@ function unquote(value){
 function major(value){const m=String(value||'').match(/(?:^|[^0-9])(\d{1,2})(?:\.x|\.|\b)/);return m?Number(m[1]):null;}
 function indentOf(line){return line.match(/^\s*/)?.[0].length||0;}
 
+export function taskTestFiles(task={}){
+  return [...new Set((task.touchedFiles||[]).filter(file=>/(^|\/)(?:__tests__|tests?|specs?)(?:\/|$)|\.(?:test|spec)\.[^/]+$/i.test(file)))].sort();
+}
+
 export function extractWorkflowRunCommands(text=''){
   const lines=String(text).split(/\r?\n/),commands=[];
   for(let i=0;i<lines.length;i++){
@@ -72,6 +76,30 @@ function commandName(command,index){
   return`ci:${direct?.[1]?.toLowerCase()||`check-${index+1}`}`;
 }
 
+export function verificationFamily(command=''){
+  const c=String(command).trim().toLowerCase();
+  if(/^(?:npm|pnpm|yarn|bun)\s+test(?:\s|$)/.test(c)||/^(?:npm|pnpm|yarn|bun)\s+run\s+test(?::[\w.-]+)*(?:\s|$)/.test(c)||/^(?:npx\s+)?(?:ava|jest|vitest|mocha)(?:\s|$)/.test(c)||/^node\s+--test(?:\s|$)/.test(c)||/^deno\s+(?:test|task\s+test)(?:\s|$)/.test(c))return'test';
+  if(/^(?:npm|pnpm|yarn|bun)\s+run\s+lint(?:[:\w.-])*(?:\s|$)/.test(c)||/^(?:npx\s+)?(?:xo|eslint)(?:\s|$)/.test(c))return'lint';
+  if(/^(?:npm|pnpm|yarn|bun)\s+run\s+(?:typecheck|type-check)(?:[:\w.-])*(?:\s|$)/.test(c)||/^(?:npx\s+)?(?:tsd|tsc)(?:\s|$)/.test(c))return'types';
+  return'other';
+}
+
+function broadTestCommand(command=''){
+  if(verificationFamily(command)!=='test')return false;
+  const parsed=splitSimpleCommand(command);if(!parsed)return true;
+  const[bin,args]=parsed;
+  if(['npm','pnpm','yarn','bun'].includes(bin.toLowerCase()))return true;
+  return !args.some(arg=>/(^|\/)(?:__tests__|tests?|specs?)(?:\/|$)|\.(?:test|spec)\.[^/]+$/i.test(arg));
+}
+
+function targetedTestCommand(item,testFiles=[]){
+  if(item.family!=='test'||!testFiles.length)return null;
+  const[bin,args]=item.command,lower=bin.toLowerCase();let targetedArgs=[...args];
+  if(['npm','pnpm'].includes(lower))targetedArgs=[...targetedArgs,'--',...testFiles];
+  else targetedArgs=[...targetedArgs,...testFiles];
+  return{...item,command:[bin,targetedArgs],commandText:[bin,...targetedArgs].join(' '),targeted:true,costClass:'targeted-test'};
+}
+
 function jobBlocks(text=''){
   const lines=String(text).split(/\r?\n/),jobsIndex=lines.findIndex(line=>/^\s*jobs:\s*$/.test(line));
   if(jobsIndex<0)return[];
@@ -115,15 +143,29 @@ export function extractWorkflowJobs(text='',file='workflow.yml'){
     for(const commandText of extractWorkflowRunCommands(body)){
       if(!isVerificationCommand(commandText))continue;
       const parsed=splitSimpleCommand(commandText);if(!parsed)continue;
-      commands.push({name:commandName(commandText,commands.length),command:parsed,commandText,portable:isPortableVerificationCommand(commandText)});
+      const family=verificationFamily(commandText),broad=family==='test'&&broadTestCommand(commandText);
+      commands.push({name:commandName(commandText,commands.length),command:parsed,commandText,portable:isPortableVerificationCommand(commandText),family,broad,costClass:broad?'broad-test':family==='test'?'focused-test':'cheap'});
     }
     return{id:block.id,name,file,needs,toolchain,nodeMajor,dependent:needs.length>0||usesDownloadArtifact,commands};
   });
 }
 
 function jobScore(job){
-  const portable=job.commands.filter(x=>x.portable).length;
-  return portable*10+(job.toolchain==='node'?8:job.toolchain==='default'?4:0)+(job.dependent?0:8)+(/(?:build|test|ci|unit)/i.test(`${job.id} ${job.name}`)?3:0);
+  const portable=job.commands.filter(x=>x.portable),tests=portable.filter(x=>x.family==='test'),cheap=portable.filter(x=>x.family!=='test'),broad=tests.filter(x=>x.broad);
+  return (tests.length?40:0)+Math.min(cheap.length,2)*8+(job.toolchain==='node'?8:job.toolchain==='default'?4:0)+(job.dependent?0:8)+(/(?:build|test|ci|unit)/i.test(`${job.id} ${job.name}`)?3:0)-broad.length*6-Math.max(0,portable.length-3)*2;
+}
+
+function costAwareCommands(items=[],testFiles=[]){
+  const out=[],seen=new Set();
+  for(const item of items.filter(x=>x.portable)){
+    let selected=item;
+    if(item.family==='test'&&item.broad){
+      selected=targetedTestCommand(item,testFiles);
+      if(!selected)continue;
+    }
+    const key=selected.commandText.trim();if(seen.has(key))continue;seen.add(key);out.push(selected);
+  }
+  return out;
 }
 
 export function historicalVerificationJobs(cwd){
@@ -135,19 +177,16 @@ export function historicalVerificationJobs(cwd){
   return jobs;
 }
 
-export function historicalVerificationCommands(cwd){
+export function historicalVerificationCommands(cwd,{testFiles=[]}={}){
   const jobs=historicalVerificationJobs(cwd),replayable=jobs
     .filter(job=>!job.dependent&&['node','default'].includes(job.toolchain)&&job.commands.some(x=>x.portable))
     .sort((a,b)=>jobScore(b)-jobScore(a)||a.id.localeCompare(b.id));
   if(replayable.length){
-    const selected=replayable[0],seen=new Set(),commands=[];
-    for(const item of selected.commands.filter(x=>x.portable)){
-      const key=item.commandText.trim();if(seen.has(key))continue;seen.add(key);
-      commands.push({...item,source:'historical-ci-job',jobId:selected.id,jobName:selected.name,toolchain:selected.toolchain});
-    }
-    return{source:'historical-ci-job',jobId:selected.id,jobName:selected.name,toolchain:selected.toolchain,nodeMajor:selected.nodeMajor,commands,jobs:jobs.map(job=>({id:job.id,name:job.name,toolchain:job.toolchain,nodeMajor:job.nodeMajor,needs:job.needs,dependent:job.dependent,verificationCommands:job.commands.map(x=>x.commandText),portableCommands:job.commands.filter(x=>x.portable).map(x=>x.commandText)})),omittedJobs:jobs.filter(job=>job.id!==selected.id).map(job=>job.id)};
+    const selected=replayable[0],commands=costAwareCommands(selected.commands,testFiles),hasTestCommand=commands.some(x=>x.family==='test'),strategy=hasTestCommand&&testFiles.length?'targeted-test-oracle':hasTestCommand?'focused-ci-test':'cheap-screen-only';
+    return{source:'historical-ci-job',jobId:selected.id,jobName:selected.name,toolchain:selected.toolchain,nodeMajor:selected.nodeMajor,commands,strategy,testFiles:[...testFiles],testEvidenceRequired:true,hasTestCommand,jobs:jobs.map(job=>({id:job.id,name:job.name,toolchain:job.toolchain,nodeMajor:job.nodeMajor,needs:job.needs,dependent:job.dependent,verificationCommands:job.commands.map(x=>x.commandText),portableCommands:job.commands.filter(x=>x.portable).map(x=>x.commandText),costClasses:job.commands.filter(x=>x.portable).map(x=>x.costClass)})),omittedJobs:jobs.filter(job=>job.id!==selected.id).map(job=>job.id)};
   }
-  return{source:'package-scripts',jobId:null,jobName:null,toolchain:'default',nodeMajor:null,commands:verificationCommands(cwd).map(item=>({...item,commandText:item.command.flat().join(' '),source:'package-scripts'})),jobs,omittedJobs:[]};
+  const fallback=verificationCommands(cwd).map(item=>{const commandText=item.command.flat().join(' '),family=verificationFamily(commandText),broad=family==='test'&&broadTestCommand(commandText);return{...item,commandText,source:'package-scripts',portable:true,family,broad,costClass:broad?'broad-test':family==='test'?'focused-test':'cheap'};}),commands=costAwareCommands(fallback,testFiles),hasTestCommand=commands.some(x=>x.family==='test');
+  return{source:'package-scripts',jobId:null,jobName:null,toolchain:'default',nodeMajor:null,commands,strategy:hasTestCommand&&testFiles.length?'targeted-test-oracle':hasTestCommand?'focused-package-test':'cheap-screen-only',testFiles:[...testFiles],testEvidenceRequired:true,hasTestCommand,jobs,omittedJobs:[]};
 }
 
 export function classifyVerificationFailure(result={}){

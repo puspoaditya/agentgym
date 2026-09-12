@@ -1,0 +1,8 @@
+Run locked real-agent baseline
+dataset=axios/axios
+fingerprint=502f5bf177246c5900e98bc56812d0f731fa9452940d612af6ac2d1be577fa42
+model=deepseek/deepseek-v4-flash
+tasks=5
+scan_limit=100
+max_turns=8
+mutation_candidates=0

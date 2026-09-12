@@ -4,9 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
-test('help exposes Kodematik v0.6.13 locked baseline evaluation',()=>{
+test('help exposes Kodematik v0.6.14 stochastic evaluation',()=>{
   const out=execFileSync(process.execPath,[join(root,'src','cli.js'),'help'],{encoding:'utf8'});
-  assert.match(out,/Kodematik v0\.6\.13/);
+  assert.match(out,/Kodematik v0\.6\.14/);
   assert.match(out,/kodematik qualify/);
   assert.match(out,/kodematik baseline/);
   assert.match(out,/kodematik evolve/);
@@ -20,11 +20,13 @@ test('help exposes Kodematik v0.6.13 locked baseline evaluation',()=>{
   assert.match(out,/--install-timeout-sec N/);
   assert.match(out,/--holdout PERCENT/);
   assert.match(out,/--candidates N/);
+  assert.match(out,/--trials N/);
   assert.match(out,/--max-turns N/);
-  assert.match(out,/Locked Baseline Evaluation/);
-  assert.match(out,/exact targeted historical test-oracle plan/);
-  assert.match(out,/editing those oracle tests invalidates a pass/);
-  assert.match(out,/optionally enforces an exact set fingerprint/);
-  assert.match(out,/held-out KEEP gating/);
+  assert.match(out,/Stochastic Evaluation/);
+  assert.match(out,/exploration winner is re-evaluated/);
+  assert.match(out,/majority of at least 3 training trials/);
+  assert.match(out,/zero regressions across all paired held-out trials/);
+  assert.match(out,/one-off stochastic win/);
+  assert.match(out,/Fingerprint-locked qualification/);
   assert.match(out,/--install/);
 });

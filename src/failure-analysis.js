@@ -18,7 +18,7 @@ function exactVerificationWasRun(commands=[],verificationCommands=[],oracleFiles
 }
 
 export function analyzeFailureResult(result={}){
-  const calls=toolCalls(result.agent?.events||[]),reads=calls.filter(x=>x.name==='read_file').map(x=>x.args?.path).filter(Boolean),writes=calls.filter(x=>x.name==='write_file').map(x=>x.args?.path).filter(Boolean),commands=calls.filter(x=>x.name==='run_command').map(x=>x.args?.command).filter(Boolean),oracleFiles=[...(result.testOracleFiles||[])],verificationCommands=[...(result.verificationCommands||[])],files=[...(result.files||[])],remaining=(result.after||[]).filter(check=>!check.ok),productionFiles=files.filter(productionFile),stderr=String(result.agent?.stderr||'');
+  const calls=toolCalls(result.agent?.events||[]),reads=calls.filter(x=>x.name==='read_file').map(x=>x.args?.path).filter(Boolean),writes=calls.filter(x=>x.name==='write_file').map(x=>x.args?.path).filter(Boolean),commands=calls.filter(x=>x.name==='run_command').map(x=>x.args?.command).filter(Boolean),oracleFiles=[...(result.testOracleFiles||[])],verificationCommands=[...(result.verificationCommands||[])],files=[...(result.files||[])],remaining=(result.after||[]).filter(check=>!check.ok),productionFiles=files.filter(productionFile),stderr=String(result.agent?.stderr||''),instructionContext=result.agent?.instructionContext||null;
   const profile={
     taskId:result.taskId||null,
     title:result.title||'',
@@ -26,6 +26,12 @@ export function analyzeFailureResult(result={}){
     agentOk:!!result.agent?.ok,
     agentStatus:result.agent?.status??null,
     turnExhausted:/exceeded\s+\d+\s+tool-call turns/i.test(stderr),
+    instructionDeliveryKnown:instructionContext!==null,
+    instructionsLoaded:instructionContext?.loaded??null,
+    instructionPath:instructionContext?.path||null,
+    instructionFingerprint:instructionContext?.sha256||null,
+    instructionChars:instructionContext?.chars||0,
+    instructionTruncated:!!instructionContext?.truncated,
     oracleFiles,
     verificationCommands,
     readFiles:[...new Set(reads)],
@@ -47,6 +53,7 @@ export function analyzeFailureResult(result={}){
   };
   profile.signals=[
     profile.turnExhausted?'turn-budget-exhausted':null,
+    profile.instructionDeliveryKnown&&profile.instructionsLoaded===false?'repository-instructions-not-delivered':null,
     profile.didNotReadOracle?'oracle-not-read':null,
     profile.didNotRunTargetedVerification?'targeted-verify-not-run':null,
     profile.noProductionEdit?'no-production-edit':null,

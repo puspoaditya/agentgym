@@ -66,8 +66,13 @@ const tools=[
 
 export function runOpenRouterTask(cwd,prompt,{model='deepseek/deepseek-v4-flash',timeout=300000,maxTurns=8}={}){
   const key=process.env.OPENROUTER_API_KEY,{systemPrompt,instructionContext}=buildOpenRouterSystemPrompt(cwd),events=[];
-  if(instructionContext.loaded)events.push({type:'instructions.loaded',path:instructionContext.path,sha256:instructionContext.sha256,chars:instructionContext.chars,truncated:instructionContext.truncated});
-  else events.push({type:'instructions.missing',path:'AGENTS.md'});
+  if(instructionContext.loaded){
+    events.push({type:'instructions.loaded',path:instructionContext.path,sha256:instructionContext.sha256,chars:instructionContext.chars,truncated:instructionContext.truncated});
+    console.log(`OpenRouter instructions: ${instructionContext.path} · sha256=${instructionContext.sha256.slice(0,16)} · chars=${instructionContext.chars}${instructionContext.truncated?' · truncated=yes':''}`);
+  }else{
+    events.push({type:'instructions.missing',path:'AGENTS.md'});
+    console.log('OpenRouter instructions: AGENTS.md missing');
+  }
   if(!key)return{ok:false,status:1,events,usage:null,stderr:'OPENROUTER_API_KEY is required for --agent openrouter',instructionContext};
   const turnLimit=Math.max(1,Math.min(32,Number(maxTurns)||8));
   const messages=[

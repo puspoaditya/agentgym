@@ -24,7 +24,11 @@ on:
         required: true
         default: '30'
       candidates:
-        description: Number of mutation candidates
+        description: Number of mutation candidates explored in trial 1
+        required: true
+        default: '3'
+      trials:
+        description: Paired stochastic evidence trials (minimum 3)
         required: true
         default: '3'
       model:
@@ -45,7 +49,7 @@ permissions:
 jobs:
   tournament:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     env:
       TARGET_REPO: ${{ inputs.target_repo || 'axios/axios' }}
       TASKS: ${{ inputs.tasks || '5' }}
@@ -53,6 +57,7 @@ jobs:
       EXPECTED_FINGERPRINT: ${{ inputs.expected_fingerprint || '502f5bf177246c5900e98bc56812d0f731fa9452940d612af6ac2d1be577fa42' }}
       HOLDOUT: ${{ inputs.holdout || '30' }}
       CANDIDATES: ${{ inputs.candidates || '3' }}
+      TRIALS: ${{ inputs.trials || '3' }}
       MODEL: ${{ inputs.model || 'deepseek/deepseek-v4-flash' }}
       MAX_TURNS: ${{ inputs.max_turns || '8' }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -77,6 +82,8 @@ jobs:
           [[ "$SCAN_LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo 'scan_limit must be a positive integer'; exit 2; }
           [[ "$HOLDOUT" =~ ^[1-9][0-9]*$ ]] || { echo 'holdout must be a positive integer'; exit 2; }
           [[ "$CANDIDATES" =~ ^[1-9][0-9]*$ ]] || { echo 'candidates must be a positive integer'; exit 2; }
+          [[ "$TRIALS" =~ ^[1-9][0-9]*$ ]] || { echo 'trials must be a positive integer'; exit 2; }
+          [ "$TRIALS" -ge 3 ] || { echo 'trials must be at least 3'; exit 2; }
           [[ "$MAX_TURNS" =~ ^[1-9][0-9]*$ ]] || { echo 'max_turns must be a positive integer'; exit 2; }
           [[ "$EXPECTED_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]] || { echo 'expected_fingerprint must be a SHA-256 hex string'; exit 2; }
           [ -n "$OPENROUTER_API_KEY" ] || { echo 'Missing repository secret OPENROUTER_API_KEY'; exit 2; }
@@ -108,7 +115,7 @@ jobs:
             --install \
             --no-agent | tee ../kodematik-tournament-preflight.txt
 
-      - name: Run mutation tournament
+      - name: Run stochastic mutation tournament
         working-directory: tournament-target
         shell: bash
         run: |
@@ -119,6 +126,7 @@ jobs:
             --scan-limit "$SCAN_LIMIT" \
             --holdout "$HOLDOUT" \
             --candidates "$CANDIDATES" \
+            --trials "$TRIALS" \
             --model "$MODEL" \
             --max-turns "$MAX_TURNS" \
             --install | tee ../kodematik-tournament.txt
@@ -128,7 +136,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "# Kodematik locked mutation tournament"
+            echo "# Kodematik locked stochastic mutation tournament"
             echo
             echo "- Target: $TARGET_REPO"
             echo "- Agent: openrouter"
@@ -137,6 +145,7 @@ jobs:
             echo "- Scan limit: $SCAN_LIMIT"
             echo "- Holdout: $HOLDOUT%"
             echo "- Mutation candidates: $CANDIDATES"
+            echo "- Paired trials: $TRIALS"
             echo "- Max turns: $MAX_TURNS"
             echo "- Expected fingerprint preflight: $EXPECTED_FINGERPRINT"
             echo "- Kodematik commit: $GITHUB_SHA"
@@ -156,7 +165,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kodematik-tournament-${{ github.run_id }}
+          name: kodematik-tournament-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           path: |
             kodematik-tournament-preflight.txt
             kodematik-tournament.txt

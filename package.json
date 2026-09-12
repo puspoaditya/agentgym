@@ -1,7 +1,7 @@
 {
   "name": "kodematik",
-  "version": "0.6.12",
-  "description": "Train coding agents with cost-aware historical test oracles, bounded qualification, job-scoped CI reconstruction, exact task-set integrity, and reproducibility guards.",
+  "version": "0.6.13",
+  "description": "Train coding agents with fingerprint-locked baseline evaluation, targeted historical test oracles, bounded qualification, exact task-set integrity, and reproducibility guards.",
   "type": "module",
   "bin": { "kodematik": "./src/cli.js" },
   "scripts": {

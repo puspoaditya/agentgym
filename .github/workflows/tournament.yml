@@ -1,0 +1,163 @@
+name: Real Agent Tournament
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: Public GitHub repository in owner/name form
+        required: true
+        default: axios/axios
+      tasks:
+        description: Number of reproducible qualified tasks
+        required: true
+        default: '5'
+      scan_limit:
+        description: Maximum candidate commits to scan
+        required: true
+        default: '100'
+      expected_fingerprint:
+        description: Exact qualification set fingerprint required before AI calls
+        required: true
+        default: 502f5bf177246c5900e98bc56812d0f731fa9452940d612af6ac2d1be577fa42
+      holdout:
+        description: Held-out percentage
+        required: true
+        default: '30'
+      candidates:
+        description: Number of mutation candidates
+        required: true
+        default: '3'
+      model:
+        description: OpenRouter model
+        required: true
+        default: deepseek/deepseek-v4-flash
+      max_turns:
+        description: Maximum tool-call turns per task
+        required: true
+        default: '8'
+  push:
+    paths:
+      - .github/tournament-trigger
+
+permissions:
+  contents: read
+
+jobs:
+  tournament:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TARGET_REPO: ${{ inputs.target_repo || 'axios/axios' }}
+      TASKS: ${{ inputs.tasks || '5' }}
+      SCAN_LIMIT: ${{ inputs.scan_limit || '100' }}
+      EXPECTED_FINGERPRINT: ${{ inputs.expected_fingerprint || '502f5bf177246c5900e98bc56812d0f731fa9452940d612af6ac2d1be577fa42' }}
+      HOLDOUT: ${{ inputs.holdout || '30' }}
+      CANDIDATES: ${{ inputs.candidates || '3' }}
+      MODEL: ${{ inputs.model || 'deepseek/deepseek-v4-flash' }}
+      MAX_TURNS: ${{ inputs.max_turns || '8' }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+    steps:
+      - name: Checkout Kodematik
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate tournament inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo 'target_repo must be owner/name'; exit 2; }
+          [[ "$TASKS" =~ ^[1-9][0-9]*$ ]] || { echo 'tasks must be a positive integer'; exit 2; }
+          [[ "$SCAN_LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo 'scan_limit must be a positive integer'; exit 2; }
+          [[ "$HOLDOUT" =~ ^[1-9][0-9]*$ ]] || { echo 'holdout must be a positive integer'; exit 2; }
+          [[ "$CANDIDATES" =~ ^[1-9][0-9]*$ ]] || { echo 'candidates must be a positive integer'; exit 2; }
+          [[ "$MAX_TURNS" =~ ^[1-9][0-9]*$ ]] || { echo 'max_turns must be a positive integer'; exit 2; }
+          [[ "$EXPECTED_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]] || { echo 'expected_fingerprint must be a SHA-256 hex string'; exit 2; }
+          [ -n "$OPENROUTER_API_KEY" ] || { echo 'Missing repository secret OPENROUTER_API_KEY'; exit 2; }
+
+      - name: Install Kodematik
+        run: |
+          npm install
+          npm link
+          kodematik help
+
+      - name: Clone tournament target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone "https://github.com/${TARGET_REPO}.git" tournament-target
+
+      - name: Fingerprint preflight without AI
+        working-directory: tournament-target
+        shell: bash
+        run: |
+          set -euo pipefail
+          kodematik baseline \
+            --agent openrouter \
+            --tasks "$TASKS" \
+            --scan-limit "$SCAN_LIMIT" \
+            --expected-fingerprint "$EXPECTED_FINGERPRINT" \
+            --model "$MODEL" \
+            --max-turns "$MAX_TURNS" \
+            --install \
+            --no-agent | tee ../kodematik-tournament-preflight.txt
+
+      - name: Run mutation tournament
+        working-directory: tournament-target
+        shell: bash
+        run: |
+          set -euo pipefail
+          kodematik evolve \
+            --agent openrouter \
+            --tasks "$TASKS" \
+            --scan-limit "$SCAN_LIMIT" \
+            --holdout "$HOLDOUT" \
+            --candidates "$CANDIDATES" \
+            --model "$MODEL" \
+            --max-turns "$MAX_TURNS" \
+            --install | tee ../kodematik-tournament.txt
+
+      - name: Write run metadata
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# Kodematik locked mutation tournament"
+            echo
+            echo "- Target: $TARGET_REPO"
+            echo "- Agent: openrouter"
+            echo "- Model: $MODEL"
+            echo "- Tasks requested: $TASKS"
+            echo "- Scan limit: $SCAN_LIMIT"
+            echo "- Holdout: $HOLDOUT%"
+            echo "- Mutation candidates: $CANDIDATES"
+            echo "- Max turns: $MAX_TURNS"
+            echo "- Expected fingerprint preflight: $EXPECTED_FINGERPRINT"
+            echo "- Kodematik commit: $GITHUB_SHA"
+            echo
+            echo '## Fingerprint preflight'
+            echo '```text'
+            if [ -f kodematik-tournament-preflight.txt ]; then cat kodematik-tournament-preflight.txt; else echo 'Preflight did not produce a report.'; fi
+            echo '```'
+            echo
+            echo '## Tournament'
+            echo '```text'
+            if [ -f kodematik-tournament.txt ]; then cat kodematik-tournament.txt; else echo 'Tournament did not produce a report.'; fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload tournament reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kodematik-tournament-${{ github.run_id }}
+          path: |
+            kodematik-tournament-preflight.txt
+            kodematik-tournament.txt
+          if-no-files-found: warn

@@ -21,6 +21,20 @@ test('failure profile recognizes useful baseline behavior',()=>{
   assert.equal(profile.noProductionEdit,false);
 });
 
+test('failure profile records OpenRouter instruction delivery evidence',()=>{
+  const loaded=analyzeFailureResult(failedResult({agent:{ok:false,status:1,stderr:'',events:[],instructionContext:{loaded:true,path:'AGENTS.md',sha256:'abc123',chars:321,truncated:false}}}));
+  assert.equal(loaded.instructionDeliveryKnown,true);
+  assert.equal(loaded.instructionsLoaded,true);
+  assert.equal(loaded.instructionFingerprint,'abc123');
+  assert.equal(loaded.instructionChars,321);
+  assert.equal(loaded.signals.includes('repository-instructions-not-delivered'),false);
+
+  const missing=analyzeFailureResult(failedResult({agent:{ok:false,status:1,stderr:'',events:[],instructionContext:{loaded:false,path:null,sha256:null,chars:0,truncated:false}}}));
+  assert.equal(missing.instructionDeliveryKnown,true);
+  assert.equal(missing.instructionsLoaded,false);
+  assert.equal(missing.signals.includes('repository-instructions-not-delivered'),true);
+});
+
 test('failure profiles are remembered per repository and task',()=>{
   clearFailureProfiles();
   const result=failedResult();rememberFailureProfile('/repo','abc123',result);

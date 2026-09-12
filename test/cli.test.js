@@ -4,9 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
-test('help exposes Kodematik v0.6.11 bounded qualification',()=>{
+test('help exposes Kodematik v0.6.12 cost-aware verification selection',()=>{
   const out=execFileSync(process.execPath,[join(root,'src','cli.js'),'help'],{encoding:'utf8'});
-  assert.match(out,/Kodematik v0\.6\.11/);
+  assert.match(out,/Kodematik v0\.6\.12/);
   assert.match(out,/kodematik qualify/);
   assert.match(out,/kodematik evolve/);
   assert.match(out,/--agent codex\|openrouter/);
@@ -19,13 +19,12 @@ test('help exposes Kodematik v0.6.11 bounded qualification',()=>{
   assert.match(out,/--holdout PERCENT/);
   assert.match(out,/--candidates N/);
   assert.match(out,/--max-turns N/);
-  assert.match(out,/Bounded Qualification/);
-  assert.match(out,/75-minute total budget/);
-  assert.match(out,/60 seconds/);
-  assert.match(out,/Progress is emitted/);
-  assert.match(out,/No-regression commits stop after the first clean verification/);
-  assert.match(out,/fresh-worktree reproduction/);
-  assert.match(out,/Job-scoped historical CI/);
+  assert.match(out,/Cost-Aware Verification Selection/);
+  assert.match(out,/cheap checks from broad test suites/);
+  assert.match(out,/test-only oracle/);
+  assert.match(out,/cannot qualify from lint or type failures alone/);
+  assert.match(out,/cheap screening only/);
+  assert.match(out,/75-minute total qualification budget/);
   assert.match(out,/exact task-set comparison/);
   assert.match(out,/held-out KEEP gating/);
   assert.match(out,/--install/);

@@ -3,13 +3,24 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { extractWorkflowRunCommands, extractWorkflowJobs, historicalVerificationJobs, historicalVerificationCommands, classifyVerificationFailure, verificationOutputSnippet } from '../src/verification.js';
+import { extractWorkflowRunCommands, extractWorkflowJobs, historicalVerificationJobs, historicalVerificationCommands, classifyVerificationFailure, verificationOutputSnippet, taskTestFiles, verificationFamily } from '../src/verification.js';
 
 function fixture(){return mkdtempSync(join(tmpdir(),'kodematik-verification-'));}
 
 test('extractWorkflowRunCommands reads inline and block run steps',()=>{
   const text=`jobs:\n  test:\n    steps:\n      - run: npm install\n      - run: npm test\n      - run: |\n          npm run lint\n`;
   assert.deepEqual(extractWorkflowRunCommands(text),['npm install','npm test','npm run lint']);
+});
+
+test('taskTestFiles extracts deterministic historical test oracles',()=>{
+  const files=taskTestFiles({touchedFiles:['lib/a.js','tests/unit/a.test.js','src/a.spec.ts','docs/test.md','__tests__/b.js','tests/unit/a.test.js']});
+  assert.deepEqual(files,['__tests__/b.js','src/a.spec.ts','tests/unit/a.test.js']);
+});
+
+test('verificationFamily separates test, lint and type evidence',()=>{
+  assert.equal(verificationFamily('npm run test:vitest:unit'),'test');
+  assert.equal(verificationFamily('npm run lint'),'lint');
+  assert.equal(verificationFamily('npx tsc --noEmit'),'types');
 });
 
 test('extractWorkflowJobs keeps Node and Bun jobs separate',()=>{
@@ -20,50 +31,69 @@ test('extractWorkflowJobs keeps Node and Bun jobs separate',()=>{
   assert.equal(jobs[0].toolchain,'node');
   assert.equal(jobs[0].nodeMajor,26);
   assert.deepEqual(jobs[0].commands.filter(x=>x.portable).map(x=>x.commandText),['npm run lint','npm run test:vitest:unit']);
+  assert.equal(jobs[0].commands.find(x=>x.family==='test').costClass,'broad-test');
   assert.equal(jobs[1].id,'bun-smoke');
   assert.equal(jobs[1].toolchain,'bun');
   assert.equal(jobs[1].dependent,true);
   assert.deepEqual(jobs[1].commands.map(x=>x.commandText),['bun test']);
 });
 
-test('historicalVerificationCommands selects one self-contained CI job and never mixes Bun',()=>{
+test('historicalVerificationCommands targets touched tests and never mixes Bun',()=>{
   const dir=fixture();
   try{
     mkdirSync(join(dir,'.github','workflows'),{recursive:true});
     writeFileSync(join(dir,'package.json'),JSON.stringify({scripts:{test:'node --test',lint:'eslint .','test:unit':'vitest'}}));
     writeFileSync(join(dir,'.github','workflows','ci.yml'),`jobs:\n  build-and-test:\n    steps:\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22.x\n      - run: npm install\n      - run: npm run lint\n      - run: npm run test:unit\n  bun-smoke:\n    needs: build-and-test\n    steps:\n      - uses: oven-sh/setup-bun@v2\n      - run: bun test\n`);
-    const jobs=historicalVerificationJobs(dir),plan=historicalVerificationCommands(dir);
+    const jobs=historicalVerificationJobs(dir),plan=historicalVerificationCommands(dir,{testFiles:['tests/unit/a.test.js']});
     assert.equal(jobs.length,2);
     assert.equal(plan.source,'historical-ci-job');
     assert.equal(plan.jobId,'build-and-test');
     assert.equal(plan.nodeMajor,22);
-    assert.deepEqual(plan.commands.map(x=>x.commandText),['npm run lint','npm run test:unit']);
+    assert.equal(plan.strategy,'targeted-test-oracle');
+    assert.deepEqual(plan.commands.map(x=>x.commandText),['npm run lint','npm run test:unit -- tests/unit/a.test.js']);
+    assert.equal(plan.commands[1].targeted,true);
+    assert.equal(plan.commands[1].family,'test');
     assert.ok(plan.omittedJobs.includes('bun-smoke'));
     assert.doesNotMatch(plan.commands.map(x=>x.commandText).join('\n'),/bun test/);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
-test('historicalVerificationCommands prefers verification entrypoints from CI',()=>{
+test('broad test suites are skipped during cheap screening when no test oracle exists',()=>{
+  const dir=fixture();
+  try{
+    mkdirSync(join(dir,'.github','workflows'),{recursive:true});
+    writeFileSync(join(dir,'package.json'),JSON.stringify({scripts:{lint:'eslint .','test:unit':'vitest'}}));
+    writeFileSync(join(dir,'.github','workflows','ci.yml'),`jobs:\n  build-and-test:\n    steps:\n      - uses: actions/setup-node@v4\n      - run: npm run lint\n      - run: npm run test:unit\n`);
+    const plan=historicalVerificationCommands(dir);
+    assert.equal(plan.strategy,'cheap-screen-only');
+    assert.equal(plan.hasTestCommand,false);
+    assert.deepEqual(plan.commands.map(x=>x.commandText),['npm run lint']);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('historicalVerificationCommands targets verification entrypoints from CI',()=>{
   const dir=fixture();
   try{
     mkdirSync(join(dir,'.github','workflows'),{recursive:true});
     writeFileSync(join(dir,'package.json'),JSON.stringify({scripts:{test:'node --test',lint:'eslint .'}}));
     writeFileSync(join(dir,'.github','workflows','ci.yml'),`jobs:\n  test:\n    steps:\n      - run: npm install\n      - run: npm test\n      - run: npm run lint\n`);
-    const plan=historicalVerificationCommands(dir);
+    const plan=historicalVerificationCommands(dir,{testFiles:['test/a.test.js']});
     assert.equal(plan.source,'historical-ci-job');
     assert.equal(plan.jobId,'test');
-    assert.deepEqual(plan.commands.map(x=>x.commandText),['npm test','npm run lint']);
-    assert.deepEqual(plan.commands[0].command,['npm',['test']]);
+    assert.deepEqual(plan.commands.map(x=>x.commandText),['npm test -- test/a.test.js','npm run lint']);
+    assert.deepEqual(plan.commands[0].command,['npm',['test','--','test/a.test.js']]);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
-test('historicalVerificationCommands falls back to package scripts when CI has no verification run',()=>{
+test('historicalVerificationCommands falls back to targeted package scripts',()=>{
   const dir=fixture();
   try{
     writeFileSync(join(dir,'package.json'),JSON.stringify({scripts:{test:'node --test'}}));
-    const plan=historicalVerificationCommands(dir);
+    const plan=historicalVerificationCommands(dir,{testFiles:['test/a.test.js']});
     assert.equal(plan.source,'package-scripts');
     assert.equal(plan.commands.length,1);
+    assert.equal(plan.commands[0].commandText,'npm run test --if-present -- test/a.test.js');
+    assert.equal(plan.commands[0].family,'test');
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 

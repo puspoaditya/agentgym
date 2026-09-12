@@ -1,13 +1,13 @@
 {
   "name": "kodematik",
-  "version": "0.6.14",
-  "description": "Train coding agents with fingerprint-locked replay tasks, targeted historical test oracles, stochastic multi-trial mutation evidence, held-out safety gates, and reproducibility guards.",
+  "version": "0.6.15",
+  "description": "Train coding agents with fingerprint-locked replay tasks, targeted historical test oracles, failure-informed mutations, stochastic multi-trial evidence, held-out safety gates, and reproducibility guards.",
   "type": "module",
   "bin": { "kodematik": "./src/cli.js" },
   "scripts": {
     "test": "node --test",
     "start": "node src/cli.js",
-    "check": "node --check src/cli.js && node --check src/core.js && node --check src/qualification.js && node --check src/task-quality.js && node --check src/integrity.js && node --check src/runtime.js && node --check src/dependencies.js && node --check src/verification.js && node --check src/evaluation.js && node --check src/mutations.js && node --check src/agents/openrouter.js"
+    "check": "node --check src/cli.js && node --check src/core.js && node --check src/qualification.js && node --check src/task-quality.js && node --check src/integrity.js && node --check src/runtime.js && node --check src/dependencies.js && node --check src/verification.js && node --check src/evaluation.js && node --check src/failure-analysis.js && node --check src/mutations.js && node --check src/agents/openrouter.js"
   },
   "keywords": ["ai", "coding-agent", "agents", "benchmark", "regression", "agents-md", "agent-skills", "codex", "openrouter", "deepseek", "evaluation"],
   "license": "MIT",

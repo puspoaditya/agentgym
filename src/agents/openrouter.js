@@ -1,8 +1,10 @@
-import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { resolve, relative, dirname } from 'node:path';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 const API_URL='https://openrouter.ai/api/v1/chat/completions';
+const MAX_INSTRUCTION_CHARS=64000;
 
 function safePath(cwd,p='.'){
   const full=resolve(cwd,p),rel=relative(cwd,full);
@@ -31,6 +33,23 @@ function traceArgs(name,args={}){
   if(name==='run_command')return{command:trimOutput(args.command||'',2000)};
   return{};
 }
+function boundedInstructions(raw,maxChars=MAX_INSTRUCTION_CHARS){
+  if(raw.length<=maxChars)return raw;
+  const marker='\n\n… AGENTS.md middle truncated by Kodematik …\n\n',available=Math.max(0,maxChars-marker.length),head=Math.ceil(available/2),tail=Math.floor(available/2);
+  return raw.slice(0,head)+marker+raw.slice(raw.length-tail);
+}
+export function repositoryInstructionContext(cwd,{maxChars=MAX_INSTRUCTION_CHARS}={}){
+  const path='AGENTS.md',full=safePath(cwd,path);
+  if(!existsSync(full))return{loaded:false,path:null,sha256:null,chars:0,truncated:false,content:''};
+  const raw=readFileSync(full,'utf8'),content=boundedInstructions(raw,maxChars);
+  return{loaded:true,path,sha256:createHash('sha256').update(content).digest('hex'),chars:content.length,truncated:content.length!==raw.length,content};
+}
+export function buildOpenRouterSystemPrompt(cwd){
+  const instructionContext=repositoryInstructionContext(cwd),base='You are a coding agent operating inside an isolated Git worktree. Diagnose the task, inspect the repository with tools, make the smallest correct change, preserve tests, run relevant verification, and stop when the task is solved.';
+  if(!instructionContext.loaded)return{systemPrompt:base,instructionContext};
+  const systemPrompt=`${base}\n\nRepository instructions from ${instructionContext.path} are part of this run. Follow them unless they conflict with higher-priority system or user instructions.\n\n--- BEGIN REPOSITORY INSTRUCTIONS ---\n${instructionContext.content}\n--- END REPOSITORY INSTRUCTIONS ---`;
+  return{systemPrompt,instructionContext};
+}
 function postJson(body,key,timeout){
   const script=`const chunks=[];process.stdin.on('data',c=>chunks.push(c));process.stdin.on('end',async()=>{try{const body=Buffer.concat(chunks).toString();const r=await fetch(${JSON.stringify(API_URL)},{method:'POST',headers:{Authorization:'Bearer '+process.env.KODEMATIK_OPENROUTER_KEY,'Content-Type':'application/json','HTTP-Referer':'https://github.com/puspoaditya/kodematik','X-Title':'Kodematik'},body});const text=await r.text();process.stdout.write(JSON.stringify({status:r.status,ok:r.ok,text}));}catch(e){process.stderr.write(e.message);process.exit(1);}});`;
   const r=spawnSync(process.execPath,['-e',script],{input:JSON.stringify(body),encoding:'utf8',timeout,env:{...process.env,KODEMATIK_OPENROUTER_KEY:key}});
@@ -46,23 +65,25 @@ const tools=[
 ];
 
 export function runOpenRouterTask(cwd,prompt,{model='deepseek/deepseek-v4-flash',timeout=300000,maxTurns=8}={}){
-  const key=process.env.OPENROUTER_API_KEY;
-  if(!key)return{ok:false,status:1,events:[],usage:null,stderr:'OPENROUTER_API_KEY is required for --agent openrouter'};
+  const key=process.env.OPENROUTER_API_KEY,{systemPrompt,instructionContext}=buildOpenRouterSystemPrompt(cwd),events=[];
+  if(instructionContext.loaded)events.push({type:'instructions.loaded',path:instructionContext.path,sha256:instructionContext.sha256,chars:instructionContext.chars,truncated:instructionContext.truncated});
+  else events.push({type:'instructions.missing',path:'AGENTS.md'});
+  if(!key)return{ok:false,status:1,events,usage:null,stderr:'OPENROUTER_API_KEY is required for --agent openrouter',instructionContext};
   const turnLimit=Math.max(1,Math.min(32,Number(maxTurns)||8));
   const messages=[
-    {role:'system',content:'You are a coding agent operating inside an isolated Git worktree. Diagnose the task, inspect the repository with tools, make the smallest correct change, preserve tests, run relevant verification, and stop when the task is solved.'},
+    {role:'system',content:systemPrompt},
     {role:'user',content:prompt}
   ];
-  let usage={input_tokens:0,output_tokens:0},lastText='';const events=[];
+  let usage={input_tokens:0,output_tokens:0},lastText='';
   for(let turn=0;turn<turnLimit;turn++){
     const r=postJson({model,messages,tools,tool_choice:'auto'},key,timeout);
-    if(!r.ok)return{ok:false,status:r.status||1,events,usage,stderr:r.error||r.data?.error?.message||`OpenRouter HTTP ${r.status}`};
+    if(!r.ok)return{ok:false,status:r.status||1,events,usage,stderr:r.error||r.data?.error?.message||`OpenRouter HTTP ${r.status}`,instructionContext};
     const msg=r.data?.choices?.[0]?.message;
-    if(!msg)return{ok:false,status:1,events,usage,stderr:'OpenRouter returned no assistant message'};
+    if(!msg)return{ok:false,status:1,events,usage,stderr:'OpenRouter returned no assistant message',instructionContext};
     if(r.data.usage){usage.input_tokens+=r.data.usage.prompt_tokens||0;usage.output_tokens+=r.data.usage.completion_tokens||0;}
     messages.push(msg);lastText=msg.content||lastText;
     const calls=msg.tool_calls||[];
-    if(!calls.length){events.push({type:'turn.completed',turn:turn+1,message:lastText});return{ok:true,status:0,events,usage,stderr:''};}
+    if(!calls.length){events.push({type:'turn.completed',turn:turn+1,message:lastText});return{ok:true,status:0,events,usage,stderr:'',instructionContext};}
     for(const call of calls){let args={};try{args=JSON.parse(call.function?.arguments||'{}');}catch{}
       const name=call.function?.name||'unknown';events.push({type:'tool.call',turn:turn+1,name,args:traceArgs(name,args)});
       let content,toolOk=true;try{content=executeTool(cwd,name,args);}catch(e){content=`Tool error: ${e.message}`;toolOk=false;}
@@ -71,5 +92,5 @@ export function runOpenRouterTask(cwd,prompt,{model='deepseek/deepseek-v4-flash'
     }
   }
   events.push({type:'turn.limit',turn:turnLimit});
-  return{ok:false,status:1,events,usage,stderr:`OpenRouter agent exceeded ${turnLimit} tool-call turns`};
+  return{ok:false,status:1,events,usage,stderr:`OpenRouter agent exceeded ${turnLimit} tool-call turns`,instructionContext};
 }
